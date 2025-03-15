@@ -12,6 +12,9 @@
 		<mockito.version>5.16.0</mockito.version>
 	</properties>
 
+	<developers>
+    </developers>
+
 	<licenses>
 		<license>
 			<name>Apache License, Version 2.0</name>
