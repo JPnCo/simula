@@ -13,7 +13,8 @@
 	</properties>
 
 	<developers>
-    </developers>
+		<developer></developer>
+	</developers>
 
 	<licenses>
 		<license>
