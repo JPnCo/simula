@@ -3,6 +3,7 @@ package jpnco.simula.actors;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -53,6 +54,7 @@ public final class Logger implements Actor {
 	private static Level forcedLevel = null;
 
 	private static final String PREFIX_PROBE = "%d ";
+
 	private static final String PREFIX = "%d %s %s ";
 
 	private static final int TIMEOUT = 5;
@@ -137,6 +139,21 @@ public final class Logger implements Actor {
 	}
 
 	@Override
+	public boolean equals(final Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (obj == null) {
+			return false;
+		}
+		if (getClass() != obj.getClass()) {
+			return false;
+		}
+		final Logger other = (Logger) obj;
+		return Objects.equals(id, other.id);
+	}
+
+	@Override
 	public Actor getDelegate() {
 		return delegate;
 	}
@@ -144,6 +161,11 @@ public final class Logger implements Actor {
 	@Override
 	public Integer getId() {
 		return id;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(id);
 	}
 
 	@SuppressWarnings("unchecked")

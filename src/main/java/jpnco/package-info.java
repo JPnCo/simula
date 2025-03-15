@@ -1,1 +1,1 @@
-package jpnco.simula;
+package jpnco;

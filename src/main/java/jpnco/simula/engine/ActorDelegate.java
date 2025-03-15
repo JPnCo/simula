@@ -37,7 +37,9 @@ public final class ActorDelegate implements Actor {
 	}
 
 	private final Actor delegator;
+
 	private final BlockingQueue<Event> events;
+
 	private final Engine engine;
 
 	private ActorDelegate(final Engine engine, final Actor delegator, final BlockingQueue<Event> queue) {
@@ -50,8 +52,23 @@ public final class ActorDelegate implements Actor {
 	}
 
 	@Override
+	public boolean equals(final Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (obj == null) {
+			return false;
+		}
+		if (getClass() != obj.getClass()) {
+			return false;
+		}
+		final ActorDelegate other = (ActorDelegate) obj;
+		return Objects.equals(delegator, other.delegator) && Objects.equals(engine, other.engine);
+	}
+
+	@Override
 	public Actor getDelegate() {
-		Logger.error(delegator, "No delegate for a simple actor - delegator is %s\n", delegator.getName());
+		Logger.error(delegator, "Delegate has no delegate - delegator is %s\n", delegator.getName());
 		throw new UnsupportedOperationException();
 	}
 
@@ -68,6 +85,11 @@ public final class ActorDelegate implements Actor {
 
 	public BlockingQueue<Event> getQueue() {
 		return events;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(delegator, engine);
 	}
 
 	@Override
@@ -161,7 +183,6 @@ public final class ActorDelegate implements Actor {
 		LOOP: while (true) {
 			try {
 				final Event event = events.poll(TIMEOUT, TimeUnit.SECONDS);
-				// final Event event = events.poll();
 				if (event != null) {
 					switch (event.getTopic()) {
 					case Engine.START_EVENT:

@@ -10,7 +10,7 @@ public final class IdBuilder {
 
 	private static int id = 0;
 
-	public static Integer nextId() {
+	public synchronized static Integer nextId() {
 		return id++;
 	}
 

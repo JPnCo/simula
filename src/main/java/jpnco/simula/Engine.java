@@ -1,12 +1,17 @@
 package jpnco.simula;
 
+import jpnco.simula.actors.Logger;
+import jpnco.simula.actors.TimeSource;
+
 /**
  * An Engine instance pilots a set of actors and potentially a set of child
  * engines. There is one engine that has no parent: the root engine.
  * <p>
  * Because an engine is an actor, it can subscribe and process some SIMULA
- * events. Stopping an engine implies stopping all child engines. so stopping
+ * events. Stopping an engine implies stopping all child engines. So stopping
  * the root engine implies to stop all the simulation.
+ * <p>
+ * A unique TimeSource
  *
  * @author Jean-Pascal Cozic
  *
@@ -32,6 +37,13 @@ public interface Engine extends Runnable, Actor {
 	void addChild(Engine child);
 
 	/**
+	 * Returns the logger of this engine
+	 *
+	 * @return the logger of this engine
+	 */
+	Logger getLogger();
+
+	/**
 	 * Returns the parent of this engine. May be null if this engine is the root
 	 * engine.
 	 *
@@ -53,6 +65,13 @@ public interface Engine extends Runnable, Actor {
 	 * @return the time factor of this engine.
 	 */
 	int getTimeFactor();
+
+	/**
+	 * Returns the time source of this engine
+	 *
+	 * @return the time source of this engine
+	 */
+	TimeSource getTimeSource();
 
 	/**
 	 * Register and starts an actor
@@ -78,7 +97,7 @@ public interface Engine extends Runnable, Actor {
 	void signalToChildren(Event event);
 
 	/**
-	 * Starts this engine. Starts child engines if any.
+	 * Starts this engine. Starts children engines if any.
 	 */
 	void start();
 

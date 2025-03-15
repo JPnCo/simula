@@ -4,10 +4,13 @@ import jpnco.simula.actors.Logger;
 import jpnco.simula.engine.EventImpl;
 
 /**
- * An actor is a piece of independent behavior (typically it is run by a
- * thread). Actors subscribes to topics and process each event relative to this
- * topic that it receive. To interact with an other actor, an actor can only
- * post events.
+ * An actor is a piece of independent behavior executed by a thread. Actors
+ * subscribes to topics and process each event relative to this topic that it
+ * receive. To interact with an other actor, an actor can only post an event to
+ * a given actor or signal events that are posted to all actors that subscribed
+ * this event.
+ * <p>
+ * An actor is summarily a thread that processes events posted in its queue.
  * <p>
  * There are some SIMULA events that are defined in Engine interface.
  * <li>START_EVENT: an actor must wait this event to start its business
@@ -23,8 +26,7 @@ import jpnco.simula.engine.EventImpl;
  * <br>
  * <p>
  * A lot of methods are defaulted based on a delegation pattern. So to share the
- * common behavior, an actor implementation has just to provide the three
- * methods:
+ * common behavior, an actor implementation has just to provide three methods:
  * <li>getDelegate()
  * <li>getId()
  * <li>process(Event event) <br>
@@ -41,15 +43,15 @@ public interface Actor extends Runnable, Comparable<Actor> {
 	final Integer INVALID_ID = -1;
 
 	/**
-	 * This method must be called during the START event is process by a delegate
-	 * actor.
+	 * This method must be called during the START event process by a delegate
+	 * actor. It allows to customize starting process for a peculiar actor.
 	 */
 	default void afterStart() {
 	}
 
 	/**
-	 * This method must be called during the STOP event is process by a delegate
-	 * actor.
+	 * This method must be called during the STOP event process by a delegate actor.
+	 * It allows to customize stopping process for a peculiar actor.
 	 */
 	default void beforeStop() {
 	}
@@ -98,7 +100,7 @@ public interface Actor extends Runnable, Comparable<Actor> {
 	 * @return the simple name of this actor.
 	 */
 	default String getSimpleName() {
-		return String.format("%s", getClass().getSimpleName());
+		return getClass().getSimpleName();
 	}
 
 	/**
@@ -138,7 +140,7 @@ public interface Actor extends Runnable, Comparable<Actor> {
 	}
 
 	/**
-	 * Stops this actor
+	 * Stops myself. This method is called by an actor to stop itself.
 	 */
 	default void stopMe() {
 		getEngine().signal(EventImpl.createEvent(Engine.STOP_ME_EVENT, this, getEngine().getTime()));
@@ -153,4 +155,5 @@ public interface Actor extends Runnable, Comparable<Actor> {
 	default void subscribe(final String topic) {
 		getEngine().subscribe(this, topic);
 	}
+
 }

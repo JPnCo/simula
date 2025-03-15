@@ -32,9 +32,14 @@ public final class EngineImpl implements Engine {
 	private final int TIME_FACTOR;
 	private final int TIMEOUT;
 	private final TimeSource timeSource;
-	private final String title;
+	private final String name;
+	private final Logger logger;
 
-	public EngineImpl(final String title, final Engine parent, final int timeFactor) {
+	public EngineImpl(final String title, final Engine parent) {
+		this(title, parent, 0);
+	}
+
+	private EngineImpl(final String title, final Engine parent, final int timeFactor) {
 		this.parent = parent;
 		if (parent != null) {
 			parent.addChild(this);
@@ -43,10 +48,11 @@ public final class EngineImpl implements Engine {
 			TIME_FACTOR = timeFactor;
 		}
 		TIMEOUT = 10 * TIME_FACTOR;
-		this.title = title;
+		name = title;
 		id = IdBuilder.nextId();
 		start(this);
-		registerAndStart(new Logger(this));
+		logger = new Logger(this);
+		registerAndStart(logger);
 		if (parent == null) {
 			timeSource = new TimeSource(this, TIME_FACTOR);
 			registerAndStart(timeSource);
@@ -69,13 +75,34 @@ public final class EngineImpl implements Engine {
 		children.add(child);
 	}
 
+	@Override
+	public boolean equals(final Object obj) {
+		if (this == obj) {
+			return true;
+		}
+		if (obj == null) {
+			return false;
+		}
+		if (getClass() != obj.getClass()) {
+			return false;
+		}
+		final EngineImpl other = (EngineImpl) obj;
+		return Objects.equals(id, other.id);
+	}
+
+	/**
+	 * Filters actors that are not an Engine or Logger instance
+	 *
+	 * @param actor the actor to be filtered
+	 * @return true if the actor is not an EngineImpl or Logger instance
+	 */
 	boolean filter(final Actor actor) {
 		return !EngineImpl.class.equals(actor.getClass()) && !Logger.class.equals(actor.getClass());
 	}
 
 	@Override
 	public Actor getDelegate() {
-		return null;
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
@@ -89,8 +116,13 @@ public final class EngineImpl implements Engine {
 	}
 
 	@Override
+	public Logger getLogger() {
+		return logger;
+	}
+
+	@Override
 	public String getName() {
-		return String.format("Engine:%s", title);
+		return name;
 	}
 
 	@Override
@@ -100,7 +132,7 @@ public final class EngineImpl implements Engine {
 
 	@Override
 	public String getSimpleName() {
-		return String.format("Engine:%s", title);
+		return getName();
 	}
 
 	/**
@@ -137,6 +169,16 @@ public final class EngineImpl implements Engine {
 			return parent.getTimeFactor();
 		}
 		return TIME_FACTOR;
+	}
+
+	@Override
+	public TimeSource getTimeSource() {
+		return timeSource;
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(id);
 	}
 
 	@Override
@@ -195,7 +237,7 @@ public final class EngineImpl implements Engine {
 	@Override
 	public void run() {
 		try {
-			Logger.trace(this, "Running\n");
+			Logger.trace(this, "is running\n");
 			LOOP: while (true) {
 				try {
 					final Event event = events.poll(TIMEOUT, TimeUnit.SECONDS);
@@ -237,12 +279,14 @@ public final class EngineImpl implements Engine {
 				}
 			}
 			if (parent != null) {
+				// signals parent that this engine is stopped
 				final Event stopped = EventImpl.createEvent(Engine.STOPPED_ENGINE_EVENT, this, this);
 				parent.signal(stopped);
 			}
 			Logger.trace(this, "is stopped\n");
 		} catch (final Throwable exc) {
-			System.out.printf("%s is dead because of %s\n", getSimpleName(), exc.getClass().getCanonicalName());
+			// System.out.printf("%s is dead because of %s\n", getSimpleName(),
+			// exc.getClass().getCanonicalName());
 			Logger.error(this, "Stopping actor %s because of %s(message=%s)\n", getName(),
 					exc.getClass().getCanonicalName(), exc.getMessage());
 			exc.printStackTrace();
@@ -279,14 +323,17 @@ public final class EngineImpl implements Engine {
 
 	@Override
 	public void start() {
-		Logger.trace(this, "start(%s)\n", getName());
+		Logger.trace(this, "starting (%s)...\n", getName());
 		final Event start = EventImpl.createEvent(Engine.START_EVENT, this, (Actor) null);
 		signal(start);
 	}
 
 	private void start(final Actor actor) {
 		Objects.requireNonNull(actor);
+		Logger.trace(this, "starting (%s)...\n", actor.getName());
 		new Thread(actor, actor.getName()).start();
+		// final Thread.Builder builder = Thread.ofVirtual().name(actor.getName());
+		// builder.start(actor);
 	}
 
 	@Override
@@ -300,7 +347,7 @@ public final class EngineImpl implements Engine {
 	synchronized public void subscribe(final Actor actor, final String topic) {
 		Objects.requireNonNull(actor);
 		Objects.requireNonNull(topic);
-		Logger.trace(this, "%s subscribes to topic %s\n", actor.getName(), topic);
+		Logger.trace(this, "Actor %s subscribes to topic %s\n", actor.getName(), topic);
 		Set<Actor> subscribers = subscribersBytopic.get(topic);
 		if (subscribers == null) {
 			subscribers = new HashSet<>();
@@ -349,12 +396,12 @@ public final class EngineImpl implements Engine {
 				subscribersBytopic.values().stream().forEach(s -> s.remove(actor));
 			}
 			if (actors.remove(actor.getId()) == null) {
-				System.out.printf("Actor %s is already unregistered\n", actor.getName());
+				// System.out.printf("Actor %s is already unregistered\n", actor.getName());
 				Logger.error(this, "Actor %s is already unregistered\n", actor.getName());
 				Thread.dumpStack();
 			}
 		} else {
-			System.err.printf("Unregister ENGINE %s - %d\n", actor.getName(), actors.size());
+			Logger.error(this, "Unregister Engine %s - %d\n", actor.getName(), actors.size());
 			Thread.dumpStack();
 		}
 		return actors.isEmpty();
