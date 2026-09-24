@@ -227,10 +227,20 @@ description: "Task list for the Configurable Thread Execution feature"
 - [X] T059 Add `exec-maven-plugin` (3.6.3, cached in local `~/.m2`) to `pom.xml` with `mainClass = jpnco.simula.examples.trafficlight.TrafficLightDemo` to enable `mvn -o exec:java` (plan: execution mechanism)
 - [X] T060 Add `exports jpnco.simula.examples.trafficlight;` and `requires java.desktop;` to `module-info.java` (the latter for the Swing GUI) (plan: execution mechanism)
 - [X] T061 [P] Create `Direction` enum and `Vehicle` data class in `src/main/java/jpnco/simula/examples/trafficlight/` — cardinals with row/col deltas, and a vehicle holding id/direction/speed/distance-in-segment (data-model.md)
-- [X] T062 [P] Create `TrafficCoordinator` actor in `src/main/java/jpnco/simula/examples/trafficlight/TrafficCoordinator.java` that owns the closed-loop 5×5 toroidal grid, staggered lights, the fixed fleet, and advances continuous movement on each `TIME_EVENT` (data-model.md)
+- [X] T062 [P] Create `TrafficCoordinator` actor in `src/main/java/jpnco/simula/examples/trafficlight/TrafficCoordinator.java` that owns the 5×5 grid, staggered lights, the fixed fleet, and advances continuous movement on each `TIME_EVENT`, making vehicles turn right or left at the grid edges instead of leaving it (data-model.md)
 - [X] T063 [P] Create `GridState`, `VehicleView` and `GridDisplay` in `src/main/java/jpnco/simula/examples/trafficlight/` — immutable snapshot types and the display sink interface (data-model.md)
 - [X] T064 [P] Create `TrafficMonitor` (console `GridDisplay`) that renders the grid each `TIME_EVENT` (data-model.md)
 - [X] T065 Create `TrafficLightDemo` `main` class in `src/main/java/jpnco/simula/examples/trafficlight/TrafficLightDemo.java` that builds a root engine (with the selected `ExecutionMode`, default `VIRTUAL`), seeds and starts the grid, runs `SIMULATED_SECONDS` (120), stops, and prints an equivalent outcome summary in both modes (FR-001..008, SC-003)
 - [X] T066 Create `TrafficLightGui` (Swing/Java2D) that visualizes the grid in real time — green segment (~20 m) on the green road per intersection and vehicles drawn at their current position; selected via the `gui` display token (data-model.md)
 - [X] T067 Run `mvn -o compile` and `mvn -o verify` to confirm the build stays green and the 97% framework-bundle coverage gate is preserved with the example excluded (Constitution II)
 - [X] T068 Run the demo in both modes (`mvn -o exec:java -Dexec.args="virtual"` and `...="classic"`) and confirm equivalent outcomes (SC-003, quickstart.md scenario 8)
+
+---
+
+## Phase 10: Convergence
+
+**Purpose**: Close gaps found by `/speckit.converge` between the spec/plan/tasks and the implemented codebase. Constitution gate VI (documentation citing FR/SC identifiers) is unmet for six example classes.
+
+**?? CRITICAL**: T069 addresses Constitution VI, which is a MUST principle; it is emitted first.
+
+- [ ] T069 Add FR/SC identifier citations to the Javadoc of `GridDisplay.java`, `Vehicle.java`, `VehicleView.java`, `GridState.java`, `Direction.java` and `TrafficMonitor.java` in `src/main/java/jpnco/simula/examples/trafficlight/`, per class and method, citing the FR-###/SC-### identifiers each element participates in implementing (Constitution VI; plan.md addendum Constitution Check declares "Javadoc on example classes/methods citing FR/SC | PASS" — currently contradicted) (CRITICAL, `contradicts`)

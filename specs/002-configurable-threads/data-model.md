@@ -83,7 +83,7 @@ A cardinal direction of travel on the grid: `NORTH`, `SOUTH`, `EAST`, `WEST`, ea
 
 ## Vehicle
 
-A vehicle travelling the grid. It holds an identity, a current cell (the origin of the segment it is on), a direction, a fixed speed, and the distance already travelled into the current segment. It persists for the whole demo and loops forever around the toroidal grid, which is what makes the network a closed circuit.
+A vehicle travelling the grid. It holds an identity, a current cell (the origin of the segment it is on), a direction, a fixed speed, and the distance already travelled into the current segment. It persists for the whole demo and keeps circulating within the grid: at an edge it turns right or left rather than leaving it.
 
 | Field | Type | Notes |
 |-------|------|-------|

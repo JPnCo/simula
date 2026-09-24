@@ -70,7 +70,7 @@ Validation guide for the `002-configurable-threads` feature. It proves the featu
 - Run in **classic** mode, console display: `mvn -o exec:java -Dexec.args="classic"`
 - Run the **GUI** display (runs until the window is closed): `mvn -o exec:java -Dexec.args="virtual gui"`
 - Fallback (module launcher): `java -p target/classes -m Simula/jpnco.simula.examples.trafficlight.TrafficLightDemo classic`
-- **Expected**: the demo builds a closed-loop 5×5 toroidal grid (each segment 250 m, vehicles at a fixed speed in 15–45 km/h), a traffic light at every intersection with a short green segment (~20 m) marking the green road, and a fleet of vehicles that advance continuously and may turn randomly. The console display prints the grid each simulated second; the GUI shows it in real time. The two modes produce an equivalent outcome summary (same vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003).
+- **Expected**: the demo builds a 5×5 grid (each segment 250 m, vehicles at a fixed speed in 15–45 km/h), a traffic light at every intersection with a short green segment (~20 m) marking the green road, and a fleet of vehicles that advance continuously, may turn randomly at interior intersections, and must turn right or left at the grid edges rather than leaving it. The console display prints the grid each simulated second; the GUI shows it in real time. The two modes produce an equivalent outcome summary (same vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003).
 
 ## References
 

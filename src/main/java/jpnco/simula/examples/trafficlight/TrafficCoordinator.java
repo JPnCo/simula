@@ -18,9 +18,9 @@ import jpnco.simula.engine.IdBuilder;
  * intersection has a traffic light that alternates between letting north-south traffic flow and
  * letting east-west traffic flow; the lights are staggered across the grid so movement is varied. A
  * fixed fleet of vehicles travels the grid; a vehicle only enters the next cell when its current
- * intersection's light is green for its direction, and it may turn randomly at an intersection. The
- * grid is toroidal, so vehicles that leave one edge re-enter on the opposite edge, forming a closed
- * circuit.
+ * intersection's light is green for its direction, and it may turn randomly at an intersection. At
+ * the edge of the grid a vehicle cannot leave it: it must turn right or left (see {@link
+ * #chooseNextDirection}), so the fleet keeps circulating within the grid.
  *
  * <p>All randomness uses a fixed seed so that the same scenario produces the same movement in every
  * execution mode (FR-005, SC-003). After every step the coordinator publishes an immutable {@link
@@ -176,7 +176,10 @@ final class TrafficCoordinator implements Actor {
    * Advances one vehicle by one simulated second of travel at its fixed speed. The vehicle moves
    * along its current segment and, when it reaches the boundary, may enter the next segment if the
    * light of the next intersection is green for its direction; otherwise it stops at the boundary
-   * and waits for green. It may then turn randomly.
+   * and waits for green. When it enters the next segment it may turn: at the edge of the grid the
+   * vehicle must turn right or left (it cannot leave the grid), otherwise it turns randomly with
+   * probability {@value #TURN_PROBABILITY}; a chosen turn that would leave the grid is not allowed
+   * and falls back to the other side.
    *
    * @param vehicle the vehicle to advance
    * @param time the current simulated time
@@ -184,21 +187,64 @@ final class TrafficCoordinator implements Actor {
   private void step(final Vehicle vehicle, final int time) {
     vehicle.advance(vehicle.getSpeed());
     while (vehicle.getDistanceInSegment() >= SEGMENT_LENGTH) {
-      final int nextRow =
-          Math.floorMod(vehicle.getRow() + vehicle.getDirection().rowDelta(), GRID_SIZE);
-      final int nextCol =
-          Math.floorMod(vehicle.getCol() + vehicle.getDirection().colDelta(), GRID_SIZE);
-      final boolean vertical = vehicle.getDirection().isVertical();
+      final Direction direction = vehicle.getDirection();
+      final Direction nextDirection = chooseNextDirection(vehicle, direction);
+      final int nextRow = vehicle.getRow() + nextDirection.rowDelta();
+      final int nextCol = vehicle.getCol() + nextDirection.colDelta();
+      final boolean vertical = nextDirection.isVertical();
       final boolean green = isNorthSouthGreen(nextRow, nextCol, time) == vertical;
       if (!green) {
         vehicle.stopAtBoundary(SEGMENT_LENGTH);
         break;
       }
-      final Direction newDirection =
-          random.nextDouble() < TURN_PROBABILITY ? randomDirection() : vehicle.getDirection();
-      vehicle.enterNextSegment(nextRow, nextCol, newDirection);
+      vehicle.enterNextSegment(nextRow, nextCol, nextDirection);
       crossings[nextRow][nextCol]++;
     }
+  }
+
+  /**
+   * Chooses the direction a vehicle takes when entering the next segment from its current cell.
+   *
+   * <p>If continuing straight would leave the grid (the vehicle is on an edge), it must turn right
+   * or left; the two sides are candidates and the first that keeps the vehicle on the grid is used
+   * (at a corner only one side may be valid). Otherwise, with probability {@value
+   * #TURN_PROBABILITY} a random direction is chosen; if that direction would leave the grid it is
+   * discarded and the vehicle continues straight.
+   *
+   * @param vehicle the vehicle being moved
+   * @param direction the current direction
+   * @return the direction to take next
+   */
+  private Direction chooseNextDirection(final Vehicle vehicle, final Direction direction) {
+    final boolean straightOnGrid =
+        isOnGrid(vehicle.getRow() + direction.rowDelta(), vehicle.getCol() + direction.colDelta());
+    if (!straightOnGrid) {
+      final Direction right = direction.turnRight();
+      if (isOnGrid(vehicle.getRow() + right.rowDelta(), vehicle.getCol() + right.colDelta())) {
+        return right;
+      }
+      return direction.turnLeft();
+    }
+    if (random.nextDouble() >= TURN_PROBABILITY) {
+      return direction;
+    }
+    final Direction candidate = randomDirection();
+    if (isOnGrid(
+        vehicle.getRow() + candidate.rowDelta(), vehicle.getCol() + candidate.colDelta())) {
+      return candidate;
+    }
+    return direction;
+  }
+
+  /**
+   * Returns whether the given cell lies within the grid bounds.
+   *
+   * @param row the row to check
+   * @param col the column to check
+   * @return {@code true} if the cell is inside the grid
+   */
+  private boolean isOnGrid(final int row, final int col) {
+    return row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE;
   }
 
   /**

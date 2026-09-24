@@ -3,8 +3,8 @@ package jpnco.simula.examples.trafficlight;
 /**
  * A single vehicle travelling on the grid. It holds an identity, a current cell, a direction, a
  * fixed speed and the distance already travelled into the current segment. Vehicles persist for the
- * whole demo and loop forever around the toroidal grid, which is what makes the network a closed
- * circuit.
+ * whole demo and keep circulating within the grid: at an edge they turn right or left rather than
+ * leaving it.
  *
  * <p>This class is demonstration code under the {@code examples} package; it is excluded from the
  * coverage gate and is not part of the framework contract.

@@ -10,12 +10,12 @@ import jpnco.simula.engine.ExecutionMode;
  * Runnable illustration of the simula framework: a closed-loop grid of intersections with a traffic
  * light at each one and vehicles that travel the grid and may turn randomly.
  *
- * <p>The grid is {@value TrafficCoordinator#GRID_SIZE} by {@value TrafficCoordinator#GRID_SIZE} and
- * toroidal, so vehicles that leave one edge re-enter on the opposite edge, forming a closed
- * circuit. Each intersection has a light that alternates between letting north-south and east-west
- * traffic flow; a vehicle only advances when its current intersection's light is green for its
- * direction, and it may change direction randomly at an intersection. A fixed fleet of {@value
- * TrafficCoordinator#INITIAL_VEHICLES} vehicles persists and loops forever until the demo stops.
+ * <p>The grid is {@value TrafficCoordinator#GRID_SIZE} by {@value TrafficCoordinator#GRID_SIZE}.
+ * Each intersection has a light that alternates between letting north-south and east-west traffic
+ * flow; a vehicle only advances when its current intersection's light is green for its direction,
+ * and it may change direction randomly at an intersection. At the edge of the grid a vehicle cannot
+ * leave it and must turn right or left, so the fixed fleet of {@value
+ * TrafficCoordinator#INITIAL_VEHICLES} vehicles keeps circulating until the demo stops.
  *
  * <p>The same scenario can be run under {@link ExecutionMode#VIRTUAL} (default) or {@link
  * ExecutionMode#PLATFORM}. All movement randomness uses a fixed seed, so the same run produces the
