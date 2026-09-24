@@ -66,10 +66,11 @@ Validation guide for the `002-configurable-threads` feature. It proves the featu
 ### 8. Traffic-light example end-to-end (FR-001..006, SC-003)
 
 - Build: `mvn -o verify` (must stay BUILD SUCCESS; the `examples` package is excluded from the JaCoCo `check` rule so the 97% gate on the framework bundle is preserved).
-- Run in **virtual** mode (default): `mvn -o exec:java -Dexec.args="virtual"`
-- Run in **classic** mode: `mvn -o exec:java -Dexec.args="classic"`
+- Run in **virtual** mode (default), console display: `mvn -o exec:java -Dexec.args="virtual"`
+- Run in **classic** mode, console display: `mvn -o exec:java -Dexec.args="classic"`
+- Run the **GUI** display (runs until the window is closed): `mvn -o exec:java -Dexec.args="virtual gui"`
 - Fallback (module launcher): `java -p target/classes -m Simula/jpnco.simula.examples.trafficlight.TrafficLightDemo classic`
-- **Expected**: the demo builds two intersections, cycles their traffic lights via `TimeSource` alarms, counts vehicles, and prints a global status on each simulated `TIME_EVENT`. The two modes produce an equivalent outcome summary (same light cycle and vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003).
+- **Expected**: the demo builds a closed-loop 5×5 toroidal grid (each segment 250 m, vehicles at a fixed speed in 15–45 km/h), a traffic light at every intersection with a short green segment (~20 m) marking the green road, and a fleet of vehicles that advance continuously and may turn randomly. The console display prints the grid each simulated second; the GUI shows it in real time. The two modes produce an equivalent outcome summary (same vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003).
 
 ## References
 

@@ -118,7 +118,7 @@ No constitutional violations are being introduced; the only unmet gates are pre-
 
 ## Summary
 
-Add a self-contained, runnable **traffic-light simulation** under `jpnco.simula.examples.trafficlight` that exercises the framework end-to-end: two intersections (child engines), per-intersection traffic-light and vehicle-sensor actors, an aggregating monitor, event subscription/signaling, `TimeSource` alarms, and the newly configurable **virtual vs classic** execution mode (FR-001..FR-006). The same scenario runs under both modes to illustrate behavioral equivalence (FR-005, SC-003). The example is illustrative (not unit-tested) and is therefore **excluded from the JaCoCo coverage gate** so the framework bundle keeps its 97% line/branch requirement (Constitution II).
+Add a self-contained, runnable **grid traffic-light simulation** under `jpnco.simula.examples.trafficlight`: a closed-loop 5×5 grid (toroidal) with a traffic light at every intersection, a fixed fleet of vehicles that travel the grid and may turn randomly at intersections, a coordinating actor that advances movement on each simulated `TIME_EVENT`, and two displays (console and a Swing/Java2D GUI) that render the grid. Movement uses realistic, continuous physics: each segment is 250 m and each vehicle has a fixed speed between 15 and 45 km/h. The same scenario runs under both the newly configurable **virtual vs classic** execution modes (FR-001..FR-006) and, because movement randomness uses a fixed seed, produces identical outcomes — demonstrating behavioral equivalence (FR-005, SC-003). The example is illustrative (not unit-tested) and is therefore **excluded from the JaCoCo coverage gate** so the framework bundle keeps its 97% line/branch requirement (Constitution II).
 
 ## Technical Context (addendum)
 
@@ -154,20 +154,24 @@ All gates pass; the JaCoCo exclusion is a deliberate, documented decision so the
 
 ```text
 src/main/java/jpnco/simula/examples/trafficlight/
-├── TrafficLightDemo.java       # main - orchestrates 2 intersections, runs in a mode
-├── TrafficLight.java           # actor - cycles RED/GREEN/ORANGE via TimeSource alarms
-├── VehicleSensor.java          # actor - counts vehicles on a VEHICLE event
-├── IntersectionController.java # actor - per-intersection state (light + count)
-└── TrafficMonitor.java         # actor - aggregates both intersections, prints on TIME_EVENT
+├── TrafficLightDemo.java       # main - builds the grid, selects mode + display, prints outcome
+├── TrafficCoordinator.java     # actor - owns grid/lights/fleet, advances on TIME_EVENT
+├── GridDisplay.java            # interface - sink for each GridState snapshot
+├── TrafficMonitor.java         # console GridDisplay - renders grid + completion
+├── TrafficLightGui.java        # Swing/Java2D GridDisplay - renders grid + vehicles
+├── GridState.java              # immutable snapshot of the grid at one instant
+├── VehicleView.java            # immutable view of one vehicle's position/direction
+├── Vehicle.java                # data - position, direction, speed, distance in segment
+└── Direction.java              # enum - N/S/E/W cardinals for movement
 
 pom.xml                         # + JaCoCo check excludes for examples/**, + exec-maven-plugin
-module-info.java                # (unchanged unless required for java -m execution)
+module-info.java                # + requires java.desktop (for the Swing GUI), exports the package
 ```
 
 ## Key Decisions (addendum)
 
 1. **Runnable demo not a test target**: example code lives in `src/main/java` under `examples/` and is excluded from the JaCoCo `check` rule (option a, user-approved). Rationale: an illustrative sample is demonstration code, not framework logic; including it in coverage would force either extra tests (defeating the "sample" purpose) or dropping coverage.
 2. **Execution mechanism**: run via `mvn -o exec:java -Dexec.args=<mode>` using `exec-maven-plugin` (3.6.3, cached in `~/.m2`). Fallback: `java -p target/classes -m Simula/jpnco.simula.examples.trafficlight.TrafficLightDemo <mode>`.
-3. **Two intersections under one root engine**: demonstrates child engines, `signalToChildren`, and start/stop cascade (FR-008) in a compact scenario.
-4. **TimeSource alarms** drive the traffic-light cycle; `TIME_EVENT` drives the monitor output — illustrates the simulated-clock mechanism.
-5. **Same scenario, both modes**: `TrafficLightDemo` runs the scenario once per selected mode and prints an equivalent outcome summary (FR-005, SC-003).
+3. **Closed-loop toroidal grid**: a single 5×5 grid with a light at each intersection; vehicles leaving one edge re-enter on the opposite edge, forming a closed circuit. A single `TrafficCoordinator` actor owns the grid and advances all vehicles on each `TIME_EVENT`, avoiding races between vehicles and lights.
+4. **Lights, speeds and continuous movement**: each intersection's light alternates between letting north-south and east-west traffic flow, staggered across the grid. Each vehicle has a fixed speed in [15, 45] km/h and moves continuously along a segment (each segment is 250 m), advancing `speed × 1s` per `TIME_EVENT`; it only enters the next segment when its light is green for its direction, otherwise it stops at the boundary and waits. It may turn randomly at an intersection. A short green segment (~20 m) drawn at each intersection marks which road has green.
+5. **Deterministic equivalence and display choice**: all movement randomness (initial positions, speeds, turns) uses a fixed seed, so the same scenario produces the same outcome in both modes (FR-005, SC-003). The console mode runs `SIMULATED_SECONDS` (120) then the root engine stops every actor (FR-008); the GUI mode (`gui` display) runs until the window is closed and renders each snapshot on the Swing event dispatch thread via a `GridDisplay`.

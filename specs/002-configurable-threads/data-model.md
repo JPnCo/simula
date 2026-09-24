@@ -68,61 +68,73 @@ Unchanged by this feature except that they run as actors under the selected exec
 
 # Addendum: Traffic-Light Example Entities
 
-Illustrative actors for the `jpnco.simula.examples.trafficlight` sample. All are implemented with the delegate pattern (`ActorDelegate.createDelegate(engine, this)`) and expose the three required methods (`getDelegate()`, `getId()`, `process(Event)`). They are demonstration code, not part of the framework contract, and are excluded from the coverage gate.
+Illustrative classes for the `jpnco.simula.examples.trafficlight` sample. The coordinating actor is implemented with the delegate pattern (`ActorDelegate.createDelegate(engine, this)`) and exposes the three required methods (`getDelegate()`, `getId()`, `process(Event)`). They are demonstration code, not part of the framework contract, and are excluded from the coverage gate.
 
-## TrafficLight (per intersection)
+## Direction (enum)
 
-Cycles a traffic light through states on a timer. State machine: `RED → GREEN → ORANGE → RED`.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `state` | TrafficLight.State | Current light state (enum RED/GREEN/ORANGE) |
-| `engine` | Engine | Owning intersection (child) engine |
-| `id` | Integer | From `IdBuilder` |
-
-**State transitions**: driven by `TimeSource` alarms (`REQUEST_ALARM` with a period). On each alarm fire the light advances to the next state and signals a `LIGHT_CHANGED` event to its intersection.
-
-## VehicleSensor (per intersection)
-
-Counts vehicles passing through an intersection.
+A cardinal direction of travel on the grid: `NORTH`, `SOUTH`, `EAST`, `WEST`, each with a `(rowDelta, colDelta)`.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `count` | int | Number of vehicles detected |
-| `engine` | Engine | Owning intersection (child) engine |
-| `id` | Integer | From `IdBuilder` |
+| `rowDelta` | int | Row change for one step (N/S = ∓1, E/W = 0) |
+| `colDelta` | int | Column change for one step (E/W = ±1, N/S = 0) |
 
-**Behavior**: subscribes to a `VEHICLE` topic; on each `VEHICLE` event it increments `count` and signals a `VEHICLE_COUNT` event to the monitor.
+**Behavior**: `rowDelta()`/`colDelta()` give the displacement of one segment; `isVertical()` reports whether the direction uses the north-south band of a light.
 
-## IntersectionController (per intersection, runs on child engine)
+## Vehicle
 
-Owns the local state of one intersection and is the subscription hub for its actors.
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `name` | String | Intersection label (e.g. "intersection-1") |
-| `lightState` | TrafficLight.State | Last known light state |
-| `vehicleCount` | int | Aggregated vehicle count |
-| `engine` | Engine | Owning child engine |
-| `id` | Integer | From `IdBuilder` |
-
-**Behavior**: subscribes to `LIGHT_CHANGED` and `VEHICLE_COUNT`; forwards summary events to the root monitor.
-
-## TrafficMonitor (runs on root engine)
-
-Aggregates state from both intersections and prints a global status on each `TIME_EVENT`.
+A vehicle travelling the grid. It holds an identity, a current cell (the origin of the segment it is on), a direction, a fixed speed, and the distance already travelled into the current segment. It persists for the whole demo and loops forever around the toroidal grid, which is what makes the network a closed circuit.
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `states` | Map<String, IntersectionController> | Keyed by intersection name |
-| `engine` | Engine | Root engine |
-| `id` | Integer | From `IdBuilder` |
+| `id` | int | Vehicle identity |
+| `speed` | double | Fixed speed in m/s (chosen in [15, 45] km/h) |
+| `row`, `col` | int | Origin intersection of the current segment |
+| `direction` | Direction | Current travel direction |
+| `distanceInSegment` | double | Metres travelled into the current segment (0..SEGMENT_LENGTH) |
 
-**Behavior**: subscribes to intersection summary topics; on `TIME_EVENT` prints the aggregated light states and vehicle counts.
+**Behavior**: `advance(metres)` adds travelled distance; `enterNextSegment(nextRow, nextCol, newDirection)` moves the vehicle onto the next segment and resets the travelled distance; `stopAtBoundary(segmentLength)` clamps it to the end of the segment so it waits at the intersection.
 
-## Message topics (named constants)
+## TrafficCoordinator (runs on root engine)
 
-- `VEHICLE` — a vehicle detected at an intersection (sensor → controller).
-- `LIGHT_CHANGED` — light state changed (light → controller).
-- `LIGHT_CHANGED_<intersection>` — forwarded to monitor (controller → monitor).
-- `VEHICLE_COUNT_<intersection>` — count forwarded to monitor (controller → monitor).
+The single actor that owns the grid and advances the whole fleet on each `TIME_EVENT`. Maintains a `GRID_SIZE` × `GRID_SIZE` grid with a traffic light at each intersection.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `vehicles` | List\<Vehicle\> | The fixed fleet (INITIAL_VEHICLES = 25) |
+| `crossings` | int[][] | Per-cell crossing counts |
+| `state` | volatile GridState | Latest immutable snapshot, published after every step (SC-003) |
+| `display` | GridDisplay | Sink that receives each snapshot (console or GUI) |
+| `done` | CountDownLatch | Released once the run completes |
+| `random` | Random | Seeded (RANDOM_SEED) for reproducibility (SC-003) |
+
+**Behavior**: on each `TIME_EVENT` it increments the simulated time, advances every vehicle, rebuilds the snapshot, forwards it to the `display`, and stops the engine (releasing `done`) once the configured `durationSeconds` is reached. Movement is continuous and realistic: each segment is `SEGMENT_LENGTH` (250 m) and a vehicle advances `speed × 1s` per step; it enters the next segment only when the light of the next intersection is green for its direction, otherwise it stops at the boundary and waits. It may turn randomly at an intersection (TURN_PROBABILITY). The light of an intersection alternates between letting north-south and east-west traffic flow, staggered by row and column (`isNorthSouthGreen(row, col, time)`).
+
+## GridState (immutable snapshot)
+
+An immutable snapshot of the grid at one instant, so displays can read it safely from another thread.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `simTime` | int | Simulated time |
+| `vehicles` | List\<VehicleView\> | Immutable vehicle views |
+| `northSouthGreen` | boolean[][] | Green direction per intersection |
+| `crossings` | int[][] | Per-cell crossing counts |
+
+**Behavior**: exposes the vehicle list, per-cell light state and crossing counts.
+
+## VehicleView (immutable)
+
+An immutable view of one vehicle's position and direction at an instant: `id`, `row`, `col`, `direction`, `distanceInSegment`.
+
+## GridDisplay (interface)
+
+A sink that receives each `GridState` snapshot. The console mode uses `TrafficMonitor`; the GUI mode supplies a no-op display while the Swing window renders on its event dispatch thread.
+
+## TrafficMonitor (console GridDisplay)
+
+Prints the grid each simulated second to `System.out`: one cell per intersection, where the light marker is `|` when north-south is green and `-` when east-west is green, with the number of vehicles occupying the cell.
+
+## TrafficLightGui (Swing/Java2D GridDisplay)
+
+A Swing window that visualizes the grid in real time. A `Timer` polls the coordinator snapshot on the Event Dispatch Thread and repaints. Each cell draws its two road bands (north-south and east-west) and a short green segment (about `GREEN_SEGMENT_METERS` = 20 m) on the band whose traffic light is green; every vehicle is drawn as a dot at its current position along its segment. The status line shows the simulated time, the vehicle count and the total crossings so far.
