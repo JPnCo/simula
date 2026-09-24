@@ -63,3 +63,66 @@ A fact signaled on a named topic at a given time. Unchanged by this feature; una
 ## TimeSource / Alarm / Logger
 
 Unchanged by this feature except that they run as actors under the selected execution mode. The TimeSource's clock executor is a framework detail resolved in the design; it is not part of the configurable execution-mode contract (scope per clarification Q2).
+
+---
+
+# Addendum: Traffic-Light Example Entities
+
+Illustrative actors for the `jpnco.simula.examples.trafficlight` sample. All are implemented with the delegate pattern (`ActorDelegate.createDelegate(engine, this)`) and expose the three required methods (`getDelegate()`, `getId()`, `process(Event)`). They are demonstration code, not part of the framework contract, and are excluded from the coverage gate.
+
+## TrafficLight (per intersection)
+
+Cycles a traffic light through states on a timer. State machine: `RED → GREEN → ORANGE → RED`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `state` | TrafficLight.State | Current light state (enum RED/GREEN/ORANGE) |
+| `engine` | Engine | Owning intersection (child) engine |
+| `id` | Integer | From `IdBuilder` |
+
+**State transitions**: driven by `TimeSource` alarms (`REQUEST_ALARM` with a period). On each alarm fire the light advances to the next state and signals a `LIGHT_CHANGED` event to its intersection.
+
+## VehicleSensor (per intersection)
+
+Counts vehicles passing through an intersection.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `count` | int | Number of vehicles detected |
+| `engine` | Engine | Owning intersection (child) engine |
+| `id` | Integer | From `IdBuilder` |
+
+**Behavior**: subscribes to a `VEHICLE` topic; on each `VEHICLE` event it increments `count` and signals a `VEHICLE_COUNT` event to the monitor.
+
+## IntersectionController (per intersection, runs on child engine)
+
+Owns the local state of one intersection and is the subscription hub for its actors.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `name` | String | Intersection label (e.g. "intersection-1") |
+| `lightState` | TrafficLight.State | Last known light state |
+| `vehicleCount` | int | Aggregated vehicle count |
+| `engine` | Engine | Owning child engine |
+| `id` | Integer | From `IdBuilder` |
+
+**Behavior**: subscribes to `LIGHT_CHANGED` and `VEHICLE_COUNT`; forwards summary events to the root monitor.
+
+## TrafficMonitor (runs on root engine)
+
+Aggregates state from both intersections and prints a global status on each `TIME_EVENT`.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `states` | Map<String, IntersectionController> | Keyed by intersection name |
+| `engine` | Engine | Root engine |
+| `id` | Integer | From `IdBuilder` |
+
+**Behavior**: subscribes to intersection summary topics; on `TIME_EVENT` prints the aggregated light states and vehicle counts.
+
+## Message topics (named constants)
+
+- `VEHICLE` — a vehicle detected at an intersection (sensor → controller).
+- `LIGHT_CHANGED` — light state changed (light → controller).
+- `LIGHT_CHANGED_<intersection>` — forwarded to monitor (controller → monitor).
+- `VEHICLE_COUNT_<intersection>` — count forwarded to monitor (controller → monitor).

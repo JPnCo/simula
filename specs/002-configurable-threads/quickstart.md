@@ -63,6 +63,14 @@ Validation guide for the `002-configurable-threads` feature. It proves the featu
    - `EventImpl` is capped near 96% line coverage because its `catch (CloneNotSupportedException …)` block in `duplicate()` is genuinely unreachable (`Event extends Cloneable`).
    - `EngineImpl` retains a few uncovered branches in `post()` (queue-full spin), `run()` (poll-timeout/null-event, and the outer `Throwable` handler), which are impractical to drive deterministically in tests.
 
+### 8. Traffic-light example end-to-end (FR-001..006, SC-003)
+
+- Build: `mvn -o verify` (must stay BUILD SUCCESS; the `examples` package is excluded from the JaCoCo `check` rule so the 97% gate on the framework bundle is preserved).
+- Run in **virtual** mode (default): `mvn -o exec:java -Dexec.args="virtual"`
+- Run in **classic** mode: `mvn -o exec:java -Dexec.args="classic"`
+- Fallback (module launcher): `java -p target/classes -m Simula/jpnco.simula.examples.trafficlight.TrafficLightDemo classic`
+- **Expected**: the demo builds two intersections, cycles their traffic lights via `TimeSource` alarms, counts vehicles, and prints a global status on each simulated `TIME_EVENT`. The two modes produce an equivalent outcome summary (same light cycle and vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003).
+
 ## References
 
 - Contracts: [contracts/execution-mode.md](contracts/execution-mode.md)

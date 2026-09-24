@@ -107,3 +107,67 @@ pom.xml                              # + coverage plugin (JaCoCo) and formatter 
 | (none) | — | — |
 
 No constitutional violations are being introduced; the only unmet gates are pre-existing infrastructure gaps (coverage tooling, formatter, missing architecture doc) which are resolved, not waived.
+
+---
+
+# Addendum: Traffic-Light Illustrative Example
+
+**Branch**: `002-configurable-threads` | **Spec**: [spec.md](spec.md)
+
+**Input**: User request for a substantial, runnable sample illustrating the simula framework and the configurable-threads feature delivered above.
+
+## Summary
+
+Add a self-contained, runnable **traffic-light simulation** under `jpnco.simula.examples.trafficlight` that exercises the framework end-to-end: two intersections (child engines), per-intersection traffic-light and vehicle-sensor actors, an aggregating monitor, event subscription/signaling, `TimeSource` alarms, and the newly configurable **virtual vs classic** execution mode (FR-001..FR-006). The same scenario runs under both modes to illustrate behavioral equivalence (FR-005, SC-003). The example is illustrative (not unit-tested) and is therefore **excluded from the JaCoCo coverage gate** so the framework bundle keeps its 97% line/branch requirement (Constitution II).
+
+## Technical Context (addendum)
+
+**Language/Version**: Java 25 (pom.xml `maven.compiler.source`/`target` = 25; module `Simula` in `module-info.java`)
+
+**Primary Dependencies**: Runtime — JDK platform only. Test — JUnit Jupiter 5.14.0, Mockito 5.22.0 (existing).
+
+**Storage**: N/A (in-memory framework; no persistence)
+
+**Testing**: The example is a runnable demo, not a unit-test target. It is excluded from the JaCoCo `check` rule so the 97% gate on the framework bundle is preserved. It is validated end-to-end via `mvn -o verify` (build intact) plus manual `exec:java` runs in both modes.
+
+**Target Platform**: JVM (Java 21+ for virtual threads; project targets Java 25)
+
+**Project Type**: Library / framework with an illustrative sample (`main` class)
+
+**Constraints**:
+- Example must use the public framework API only (no changes to framework internals except the agreed JaCoCo `excludes` and `exec` plugin in `pom.xml`).
+- Example must demonstrate both execution modes without altering the default.
+- English code/comments/Javadoc, named constants (Constitution III, IV, VI, VII).
+- Framework bundle coverage gate must remain ≥97% (exclude `jpnco/simula/examples/**` from JaCoCo `check`).
+
+## Constitution Check (addendum)
+
+| # | Principle | Gate | Status |
+|---|-----------|------|--------|
+| II | Coverage ≥97% | Example excluded from JaCoCo `check`; framework bundle unchanged | PASS (justified) |
+| VI | Documentation | Javadoc on example classes/methods citing FR/SC | PASS |
+| VII | Named Literals | All durations/periods/topics as named constants | PASS |
+
+All gates pass; the JaCoCo exclusion is a deliberate, documented decision so the illustrative sample does not erode the framework coverage gate.
+
+## Project Structure (addendum)
+
+```text
+src/main/java/jpnco/simula/examples/trafficlight/
+├── TrafficLightDemo.java       # main - orchestrates 2 intersections, runs in a mode
+├── TrafficLight.java           # actor - cycles RED/GREEN/ORANGE via TimeSource alarms
+├── VehicleSensor.java          # actor - counts vehicles on a VEHICLE event
+├── IntersectionController.java # actor - per-intersection state (light + count)
+└── TrafficMonitor.java         # actor - aggregates both intersections, prints on TIME_EVENT
+
+pom.xml                         # + JaCoCo check excludes for examples/**, + exec-maven-plugin
+module-info.java                # (unchanged unless required for java -m execution)
+```
+
+## Key Decisions (addendum)
+
+1. **Runnable demo not a test target**: example code lives in `src/main/java` under `examples/` and is excluded from the JaCoCo `check` rule (option a, user-approved). Rationale: an illustrative sample is demonstration code, not framework logic; including it in coverage would force either extra tests (defeating the "sample" purpose) or dropping coverage.
+2. **Execution mechanism**: run via `mvn -o exec:java -Dexec.args=<mode>` using `exec-maven-plugin` (3.6.3, cached in `~/.m2`). Fallback: `java -p target/classes -m Simula/jpnco.simula.examples.trafficlight.TrafficLightDemo <mode>`.
+3. **Two intersections under one root engine**: demonstrates child engines, `signalToChildren`, and start/stop cascade (FR-008) in a compact scenario.
+4. **TimeSource alarms** drive the traffic-light cycle; `TIME_EVENT` drives the monitor output — illustrates the simulated-clock mechanism.
+5. **Same scenario, both modes**: `TrafficLightDemo` runs the scenario once per selected mode and prints an equivalent outcome summary (FR-005, SC-003).

@@ -214,3 +214,22 @@ description: "Task list for the Configurable Thread Execution feature"
 - [X] T055 Add the Spotless Maven plugin (`com.diffplug.spotless:spotless-maven-plugin:2.45.0`, cached in the local `~/.m2`) to `pom.xml`, bound to run `check` (or the `verify` phase) for Java sources, using the only formatter engine cached offline (`google-java-format` 1.35.0), scoped to the files touched by this feature so legacy files are not reformatted; run `mvn -o spotless:apply` to format, then confirm the gate is enforced per research.md formatter decision and Constitution V (CRITICAL, `missing`)
 - [X] T056 Document the virtual-thread-unsupported runtime behavior (clear failure or fallback to classic threads with documented behavior) in the execution-mode contract and `EngineImpl.start(Actor)` Javadoc, and add a test asserting the defined behavior (FR-009, `partial`)
 - [X] T057 Add a virtual-mode capacity/stress test that starts and stops an engine with a high number of actors under `ExecutionMode.VIRTUAL` without exhausting platform resources (SC-006, `partial`)
+
+---
+
+## Phase 9: Traffic-Light Illustrative Example
+
+**Purpose**: Add a substantial, runnable sample (`jpnco.simula.examples.trafficlight`) that illustrates the simula framework and the configurable execution-mode feature (FR-001..FR-006, FR-008, SC-003). The example is demonstration code, excluded from the JaCoCo `check` rule so the framework bundle keeps its 97% gate.
+
+**Sequencing**: All tasks touch files under the new `examples/trafficlight/` package except T058/T059 (pom.xml) and T060 (module-info). T058 and T059 edit the same file (`pom.xml`) and MUST run sequentially. The Java example tasks (T061-T065) are independent of the pom changes and can follow.
+
+- [X] T058 Exclude `jpnco/simula/examples/**` from the JaCoCo `check` rule in `pom.xml` so the illustrative sample does not erode the 97% framework-bundle coverage gate (Constitution II, plan: coverage exclusion)
+- [X] T059 Add `exec-maven-plugin` (3.6.3, cached in local `~/.m2`) to `pom.xml` with `mainClass = jpnco.simula.examples.trafficlight.TrafficLightDemo` to enable `mvn -o exec:java` (plan: execution mechanism)
+- [X] T060 Add `exports jpnco.simula.examples.trafficlight;` to `module-info.java` if required for `java -m` execution of the demo (plan: execution mechanism, `partial`)
+- [X] T061 [P] Create `TrafficLight` actor in `src/main/java/jpnco/simula/examples/trafficlight/TrafficLight.java` that cycles `RED → GREEN → ORANGE → RED` via `TimeSource` alarms (`REQUEST_ALARM`) and signals a `LIGHT_CHANGED` event (FR-001..006, data-model.md)
+- [X] T062 [P] Create `VehicleSensor` actor in `src/main/java/jpnco/simula/examples/trafficlight/VehicleSensor.java` that counts vehicles on a `VEHICLE` event and signals a count to the controller (data-model.md)
+- [X] T063 [P] Create `IntersectionController` actor in `src/main/java/jpnco/simula/examples/trafficlight/IntersectionController.java` that owns per-intersection state (light + vehicle count) and forwards summary events to the monitor (data-model.md)
+- [X] T064 [P] Create `TrafficMonitor` actor in `src/main/java/jpnco/simula/examples/trafficlight/TrafficMonitor.java` that aggregates both intersections and prints global status on each `TIME_EVENT` (data-model.md)
+- [X] T065 Create `TrafficLightDemo` `main` class in `src/main/java/jpnco/simula/examples/trafficlight/TrafficLightDemo.java` that builds a root engine (with the selected `ExecutionMode`, default `VIRTUAL`), two child-engine intersections, registers the actors, runs ~30 simulated seconds, stops, and prints an equivalent outcome summary in both modes (FR-001..008, SC-003)
+- [X] T066 Run `mvn -o compile` and `mvn -o verify` to confirm the build stays green and the 97% framework-bundle coverage gate is preserved with the example excluded (Constitution II)
+- [X] T067 Run the demo in both modes (`mvn -o exec:java -Dexec.args="virtual"` and `...="classic"`) and confirm equivalent outcomes (SC-003, quickstart.md scenario 8)
