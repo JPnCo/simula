@@ -1,16 +1,25 @@
 package jpnco.simula.engine;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.junit.jupiter.api.AfterAll;
+import java.lang.reflect.Field;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,15 +29,11 @@ import jpnco.simula.Event;
 import jpnco.simula.actors.Logger;
 import jpnco.simula.actors.Logger.Level;
 
+/**
+ * Tests for {@link ActorDelegate}, covering delegation factories, the event
+ * queue, run loops (before/after start), purging and equality.
+ */
 class ActorDelegateTest {
-
-	@BeforeAll
-	static void setUpBeforeClass() throws Exception {
-	}
-
-	@AfterAll
-	static void tearDownAfterClass() throws Exception {
-	}
 
 	private Actor delegator;
 	private Engine engine;
@@ -69,12 +74,43 @@ class ActorDelegateTest {
 	}
 
 	@Test
+	void postNullThrows() {
+		assertThrows(NullPointerException.class, () -> delegate.post(null));
+	}
+
+	@Test
 	void purgeEventsClearsQueue() {
 		final Event event = mock(Event.class);
 		delegate.post(event);
 		assertFalse(((ActorDelegate) delegate).getQueue().isEmpty());
 		delegate.purgeEvents();
 		assertTrue(((ActorDelegate) delegate).getQueue().isEmpty());
+	}
+
+	@Test
+	void getEngineReturnsEngine() {
+		assertEquals(engine, delegate.getEngine());
+	}
+
+	@Test
+	void getIdThrows() {
+		assertThrows(UnsupportedOperationException.class, () -> delegate.getId());
+	}
+
+	@Test
+	void processThrows() {
+		assertThrows(UnsupportedOperationException.class, () -> delegate.process(mock(Event.class)));
+	}
+
+	@Test
+	void equalsAndHashCode() {
+		final Actor another = ActorDelegate.createDelegate(engine, delegator);
+		assertEquals(delegate, delegate);
+		assertEquals(delegate, another);
+		assertEquals(delegate.hashCode(), another.hashCode());
+		assertNotEquals(delegate, null);
+		assertNotEquals(delegate, new Object());
+		assertNotEquals(delegate, ActorDelegate.createDelegate(mock(Engine.class), delegator));
 	}
 
 	@Test
@@ -86,7 +122,6 @@ class ActorDelegateTest {
 		when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
 		when(stopEvent.getSource()).thenReturn(delegate);
 		delegate.post(startEvent);
-		// must post STOP_EVENT to exit run()
 		delegate.post(stopEvent);
 		delegate.run();
 		verify(delegator).afterStart();
@@ -107,14 +142,221 @@ class ActorDelegateTest {
 	void runProcessesStopMeEvent() {
 		final Event stopEvent = mock(Event.class);
 		when(stopEvent.getTopic()).thenReturn(Engine.STOP_ME_EVENT);
-		// the source must be the delegator
 		when(stopEvent.getSource()).thenReturn(delegator);
 		delegate.post(stopEvent);
 		delegate.run();
 	}
 
+	@Test
+	void runIgnoresStopMeFromOtherSourceThenStart() {
+		final Event stopMeOther = mock(Event.class);
+		when(stopMeOther.getTopic()).thenReturn(Engine.STOP_ME_EVENT);
+		when(stopMeOther.getSource()).thenReturn(mock(Actor.class));
+		final Event startEvent = mock(Event.class);
+		when(startEvent.getTopic()).thenReturn(Engine.START_EVENT);
+		when(startEvent.getSource()).thenReturn(delegate);
+		final Event stopEvent = mock(Event.class);
+		when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stopEvent.getSource()).thenReturn(delegate);
+		delegate.post(stopMeOther);
+		delegate.post(startEvent);
+		delegate.post(stopEvent);
+		delegate.run();
+		verify(delegator).afterStart();
+	}
+
+	@Test
+	void runProcessesGenericEventInBeforeStart() {
+		final Event generic = mock(Event.class);
+		when(generic.getTopic()).thenReturn("GENERIC");
+		when(generic.getSource()).thenReturn(delegator);
+		final Event stopEvent = mock(Event.class);
+		when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stopEvent.getSource()).thenReturn(delegate);
+		delegate.post(generic);
+		delegate.post(stopEvent);
+		delegate.run();
+		verify(delegator).process(generic);
+	}
+
+	@Test
+	void runProcessesGenericEventInAfterStart() {
+		final Event startEvent = mock(Event.class);
+		when(startEvent.getTopic()).thenReturn(Engine.START_EVENT);
+		when(startEvent.getSource()).thenReturn(delegate);
+		final Event generic = mock(Event.class);
+		when(generic.getTopic()).thenReturn("GENERIC");
+		when(generic.getSource()).thenReturn(delegator);
+		final Event stopEvent = mock(Event.class);
+		when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stopEvent.getSource()).thenReturn(delegate);
+		delegate.post(startEvent);
+		delegate.post(generic);
+		delegate.post(stopEvent);
+		delegate.run();
+		verify(delegator).process(generic);
+	}
+
+	@Test
+	void getQueueIsBlockingQueue() {
+		final BlockingQueue<Event> queue = ((ActorDelegate) delegate).getQueue();
+		assertNotNull(queue);
+	}
+
+	@Test
+	void runForLoggerDelegatorSkipsBeforeStart() {
+		final Logger logger = new Logger(engine);
+		final Actor loggerDelegate = logger.getDelegate();
+		final Event stopEvent = mock(Event.class);
+		when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stopEvent.getSource()).thenReturn(loggerDelegate);
+		logger.post(stopEvent);
+		logger.run();
+		verify(engine, atLeastOnce()).signal(any(Event.class));
+	}
+
+	@Test
+	void runHandlesStopMeFromSelfInAfterStart() {
+		final Event start = mock(Event.class);
+		when(start.getTopic()).thenReturn(Engine.START_EVENT);
+		when(start.getSource()).thenReturn(delegate);
+		final Event stopMe = mock(Event.class);
+		when(stopMe.getTopic()).thenReturn(Engine.STOP_ME_EVENT);
+		when(stopMe.getSource()).thenReturn(delegator);
+		final Event stop = mock(Event.class);
+		when(stop.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stop.getSource()).thenReturn(delegate);
+		delegate.post(start);
+		delegate.post(stopMe);
+		delegate.post(stop);
+		delegate.run();
+		verify(delegator).afterStart();
+	}
+
+	@Test
+	void runIgnoresStopMeFromOtherInAfterStart() {
+		final Event start = mock(Event.class);
+		when(start.getTopic()).thenReturn(Engine.START_EVENT);
+		when(start.getSource()).thenReturn(delegate);
+		final Event stopMeOther = mock(Event.class);
+		when(stopMeOther.getTopic()).thenReturn(Engine.STOP_ME_EVENT);
+		when(stopMeOther.getSource()).thenReturn(mock(Actor.class));
+		final Event stop = mock(Event.class);
+		when(stop.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stop.getSource()).thenReturn(delegate);
+		delegate.post(start);
+		delegate.post(stopMeOther);
+		delegate.post(stop);
+		delegate.run();
+		verify(delegator).afterStart();
+	}
+
+	@Test
+	void purgeEventsHandlesUnsupportedOperation() throws Exception {
+		final BlockingQueue<Event> badQueue = mock(BlockingQueue.class);
+		doThrow(new UnsupportedOperationException()).when(badQueue).clear();
+		final Field field = ActorDelegate.class.getDeclaredField("events");
+		field.setAccessible(true);
+		field.set(delegate, badQueue);
+		delegate.purgeEvents();
+	}
+
+	@Test
+	void runHandlesDelegatorThrowable() {
+		doThrow(new RuntimeException("boom")).when(delegator).subscribe(anyString());
+		delegate.run();
+		verify(engine, atLeastOnce()).signal(any(Event.class));
+	}
+
+	@Test
+	void runHandlesProcessThrowableInAfterStart() {
+		final Event start = mock(Event.class);
+		when(start.getTopic()).thenReturn(Engine.START_EVENT);
+		when(start.getSource()).thenReturn(delegate);
+		final Event generic = mock(Event.class);
+		when(generic.getTopic()).thenReturn("GENERIC");
+		when(generic.getSource()).thenReturn(delegator);
+		doThrow(new RuntimeException("process boom")).when(delegator).process(any());
+		final Event stop = mock(Event.class);
+		when(stop.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stop.getSource()).thenReturn(delegate);
+		delegate.post(start);
+		delegate.post(generic);
+		delegate.post(stop);
+		delegate.run();
+		verify(delegator).afterStart();
+		verify(engine, atLeastOnce()).signal(any(Event.class));
+	}
+
+	@Test
+	void equalsFalseWhenDelegatorDiffersSameEngine() {
+		final Actor otherDelegator = mock(Actor.class);
+		when(otherDelegator.getName()).thenReturn("other:engine");
+		when(otherDelegator.getSimpleName()).thenReturn("other");
+		final Actor other = ActorDelegate.createDelegate(engine, otherDelegator);
+		assertNotEquals(delegate, other);
+	}
+
+	@Test
+	void postRetriesWhenQueueOfferFails() throws Exception {
+		final BlockingQueue<Event> mockQueue = mock(BlockingQueue.class);
+		when(mockQueue.offer(any())).thenReturn(false, true);
+		setQueue(delegate, mockQueue);
+		delegate.post(mock(Event.class));
+		verify(mockQueue, org.mockito.Mockito.times(2)).offer(any());
+	}
+
+	@Test
+	void runBeforeStartHandlesNullPollAndInterrupt() throws Exception {
+		final Event start = mock(Event.class);
+		when(start.getTopic()).thenReturn(Engine.START_EVENT);
+		when(start.getSource()).thenReturn(delegate);
+		final Event stop = mock(Event.class);
+		when(stop.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stop.getSource()).thenReturn(delegate);
+		final BlockingQueue<Event> mockQueue = mock(BlockingQueue.class);
+		when(mockQueue.offer(any())).thenReturn(true);
+		when(mockQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(null)
+				.thenThrow(new InterruptedException()).thenReturn(start).thenReturn(stop);
+		setQueue(delegate, mockQueue);
+		delegate.run();
+		verify(delegator).afterStart();
+		Thread.interrupted();
+	}
+
+	@Test
+	void runAfterStartHandlesNullPollAndInterrupt() throws Exception {
+		final Event start = mock(Event.class);
+		when(start.getTopic()).thenReturn(Engine.START_EVENT);
+		when(start.getSource()).thenReturn(delegate);
+		final Event stop = mock(Event.class);
+		when(stop.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stop.getSource()).thenReturn(delegate);
+		final BlockingQueue<Event> mockQueue = mock(BlockingQueue.class);
+		when(mockQueue.offer(any())).thenReturn(true);
+		when(mockQueue.poll(anyLong(), any(TimeUnit.class))).thenReturn(start).thenReturn(null)
+				.thenThrow(new InterruptedException()).thenReturn(stop);
+		setQueue(delegate, mockQueue);
+		delegate.run();
+		verify(delegator).afterStart();
+		Thread.interrupted();
+	}
+
+	/**
+	 * Replaces the internal events queue of the given delegate.
+	 *
+	 * @param delegate the delegate to modify
+	 * @param queue    the queue to install
+	 * @throws Exception if reflection fails
+	 */
+	private void setQueue(final Actor delegate, final BlockingQueue<Event> queue) throws Exception {
+		final Field field = ActorDelegate.class.getDeclaredField("events");
+		field.setAccessible(true);
+		field.set(delegate, queue);
+	}
+
 	@BeforeEach
-	void setUp() throws Exception {
+	void setUp() {
 		engine = mock(Engine.class);
 		when(engine.getName()).thenReturn("engine");
 		Logger.setActivated(engine, Level.TRACE, true);
@@ -125,11 +367,10 @@ class ActorDelegateTest {
 		delegate = ActorDelegate.createDelegate(engine, delegator);
 		Logger.setActivated(delegator, Level.TRACE, true);
 		Logger.setActivated(delegate, Level.TRACE, true);
-
 	}
 
 	@AfterEach
-	void tearDown() throws Exception {
+	void tearDown() {
 		engine.stop();
 	}
 

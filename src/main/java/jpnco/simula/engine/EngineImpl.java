@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
@@ -34,13 +35,20 @@ public final class EngineImpl implements Engine {
 	private final TimeSource timeSource;
 	private final String name;
 	private final Logger logger;
+	private final ExecutionMode executionMode;
+	private final ReentrantLock lock = new ReentrantLock();
 
 	public EngineImpl(final String title, final Engine parent) {
-		this(title, parent, 0);
+		this(title, parent, 0, ExecutionMode.VIRTUAL);
 	}
 
-	private EngineImpl(final String title, final Engine parent, final int timeFactor) {
+	public EngineImpl(final String title, final Engine parent, final ExecutionMode mode) {
+		this(title, parent, 0, mode);
+	}
+
+	private EngineImpl(final String title, final Engine parent, final int timeFactor, final ExecutionMode mode) {
 		this.parent = parent;
+		this.executionMode = Objects.requireNonNull(mode);
 		if (parent != null) {
 			parent.addChild(this);
 			TIME_FACTOR = parent.getTimeFactor();
@@ -67,12 +75,21 @@ public final class EngineImpl implements Engine {
 	}
 
 	public EngineImpl(final String title, final int timeFactor) {
-		this(title, null, timeFactor);
+		this(title, null, timeFactor, ExecutionMode.VIRTUAL);
+	}
+
+	public EngineImpl(final String title, final int timeFactor, final ExecutionMode mode) {
+		this(title, null, timeFactor, mode);
 	}
 
 	@Override
-	synchronized public void addChild(final Engine child) {
-		children.add(child);
+	public void addChild(final Engine child) {
+		lock.lock();
+		try {
+			children.add(child);
+		} finally {
+			lock.unlock();
+		}
 	}
 
 	@Override
@@ -142,13 +159,18 @@ public final class EngineImpl implements Engine {
 	 * @param topic to searched topic
 	 * @return a copy of the set of subscribers of a topic
 	 */
-	synchronized private Set<Actor> getSubscribers(final String topic) {
-		final Set<Actor> subs = subscribersBytopic.get(topic);
-		if (subs != null) {
-			final Set<Actor> subscribers = new HashSet<>(subs);
-			return subscribers;
+	private Set<Actor> getSubscribers(final String topic) {
+		lock.lock();
+		try {
+			final Set<Actor> subs = subscribersBytopic.get(topic);
+			if (subs != null) {
+				final Set<Actor> subscribers = new HashSet<>(subs);
+				return subscribers;
+			}
+			return Collections.emptySet();
+		} finally {
+			lock.unlock();
 		}
-		return Collections.emptySet();
 	}
 
 	@Override
@@ -212,8 +234,11 @@ public final class EngineImpl implements Engine {
 	private void processStoppedEngineEvent(final Event event) {
 		final Engine child = (Engine) event.getParameters()[0];
 		Logger.trace(this, "Child engine %s is stopped\n", child.getName());
-		synchronized (children) {
+		lock.lock();
+		try {
 			children.remove(child);
+		} finally {
+			lock.unlock();
 		}
 	}
 
@@ -222,9 +247,14 @@ public final class EngineImpl implements Engine {
 		signalToChildren(event);
 	}
 
-	synchronized private void register(final Actor actor) {
+	private void register(final Actor actor) {
 		Logger.trace(this, "Registering actor %s:%d\n", actor.getName(), actor.getId());
-		actors.put(actor.getId(), actor);
+		lock.lock();
+		try {
+			actors.put(actor.getId(), actor);
+		} finally {
+			lock.unlock();
+		}
 	}
 
 	@Override
@@ -254,16 +284,17 @@ public final class EngineImpl implements Engine {
 								break LOOP;
 							}
 							break;
-						case Engine.STOPPED_ENGINE_EVENT:
-							processStoppedEngineEvent(event);
-							synchronized (actors) {
-								synchronized (children) {
-									if (actors.isEmpty() && children.isEmpty()) {
-										break LOOP;
-									}
-								}
+					case Engine.STOPPED_ENGINE_EVENT:
+						processStoppedEngineEvent(event);
+						lock.lock();
+						try {
+							if (actors.isEmpty() && children.isEmpty()) {
+								break LOOP;
 							}
-							break;
+						} finally {
+							lock.unlock();
+						}
+						break;
 						case Engine.TIME_EVENT:
 							processTimeEvent(event);
 							break;
@@ -316,8 +347,11 @@ public final class EngineImpl implements Engine {
 	@Override
 	public void signalToChildren(final Event event) {
 		Objects.requireNonNull(event);
-		synchronized (children) {
+		lock.lock();
+		try {
 			children.parallelStream().forEach(s -> s.signal(event.duplicate(s)));
+		} finally {
+			lock.unlock();
 		}
 	}
 
@@ -328,12 +362,28 @@ public final class EngineImpl implements Engine {
 		signal(start);
 	}
 
+	/**
+	 * Starts the supplied actor on a thread consistent with the engine's
+	 * {@link ExecutionMode} (FR-001, FR-004).
+	 * <p>
+	 * In {@link ExecutionMode#VIRTUAL} mode the actor is started on a virtual
+	 * thread carrying a meaningful name (FR-006). If the runtime does not support
+	 * virtual threads (a Java release older than 21), {@link Thread#ofVirtual()}
+	 * throws {@link UnsupportedOperationException}; the framework does not
+	 * silently fall back, so the failure is clear and immediate (FR-009). In
+	 * {@link ExecutionMode#PLATFORM} mode the actor is started on a classic
+	 * platform thread (FR-001, FR-004).
+	 *
+	 * @param actor the actor to start; must not be null
+	 */
 	private void start(final Actor actor) {
 		Objects.requireNonNull(actor);
 		Logger.trace(this, "starting (%s)...\n", actor.getName());
-		new Thread(actor, actor.getName()).start();
-		// final Thread.Builder builder = Thread.ofVirtual().name(actor.getName());
-		// builder.start(actor);
+		if (ExecutionMode.VIRTUAL.equals(executionMode)) {
+			Thread.ofVirtual().name(actor.getName()).start(actor);
+		} else {
+			new Thread(actor, actor.getName()).start();
+		}
 	}
 
 	@Override
@@ -344,16 +394,21 @@ public final class EngineImpl implements Engine {
 	}
 
 	@Override
-	synchronized public void subscribe(final Actor actor, final String topic) {
+	public void subscribe(final Actor actor, final String topic) {
 		Objects.requireNonNull(actor);
 		Objects.requireNonNull(topic);
 		Logger.trace(this, "Actor %s subscribes to topic %s\n", actor.getName(), topic);
-		Set<Actor> subscribers = subscribersBytopic.get(topic);
-		if (subscribers == null) {
-			subscribers = new HashSet<>();
-			subscribersBytopic.put(topic, subscribers);
+		lock.lock();
+		try {
+			Set<Actor> subscribers = subscribersBytopic.get(topic);
+			if (subscribers == null) {
+				subscribers = new HashSet<>();
+				subscribersBytopic.put(topic, subscribers);
+			}
+			subscribers.add(actor);
+		} finally {
+			lock.unlock();
 		}
-		subscribers.add(actor);
 	}
 
 	@Override
@@ -366,14 +421,13 @@ public final class EngineImpl implements Engine {
 		buf.append(" #actors=");
 		buf.append(actors.size());
 		buf.append("\n");
-		synchronized (actors) {
+		lock.lock();
+		try {
 			actors.values().stream().forEach(a -> {
 				buf.append("\t");
 				buf.append(a.getSimpleName());
 				buf.append("\n");
 			});
-		}
-		synchronized (children) {
 			if (!children.isEmpty()) {
 				// display all child engines
 				buf.append("Child engines\n");
@@ -382,42 +436,52 @@ public final class EngineImpl implements Engine {
 					buf.append("\n");
 				});
 			}
+		} finally {
+			lock.unlock();
 		}
 		buf.append("]");
 		return buf.toString();
 	}
 
 	@Override
-	synchronized public boolean unregister(final Actor actor) {
+	public boolean unregister(final Actor actor) {
 		Objects.requireNonNull(actor);
-		if (!(actor instanceof Engine)) {
-			Logger.debug(this, "Unregister %s\n", actor.getName());
-			synchronized (subscribersBytopic) {
+		lock.lock();
+		try {
+			if (!(actor instanceof Engine)) {
+				Logger.debug(this, "Unregister %s\n", actor.getName());
 				subscribersBytopic.values().stream().forEach(s -> s.remove(actor));
-			}
-			if (actors.remove(actor.getId()) == null) {
-				// System.out.printf("Actor %s is already unregistered\n", actor.getName());
-				Logger.error(this, "Actor %s is already unregistered\n", actor.getName());
+				if (actors.remove(actor.getId()) == null) {
+					// System.out.printf("Actor %s is already unregistered\n", actor.getName());
+					Logger.error(this, "Actor %s is already unregistered\n", actor.getName());
+					Thread.dumpStack();
+				}
+			} else {
+				Logger.error(this, "Unregister Engine %s - %d\n", actor.getName(), actors.size());
 				Thread.dumpStack();
 			}
-		} else {
-			Logger.error(this, "Unregister Engine %s - %d\n", actor.getName(), actors.size());
-			Thread.dumpStack();
+			return actors.isEmpty();
+		} finally {
+			lock.unlock();
 		}
-		return actors.isEmpty();
 	}
 
 	@Override
-	synchronized public void unsubscribe(final Actor actor, final String topic) {
+	public void unsubscribe(final Actor actor, final String topic) {
 		Objects.requireNonNull(actor);
 		Objects.requireNonNull(topic);
 		Logger.trace(this, "%s unsubscribes to topic %s\n", actor.getName(), topic);
-		final Set<Actor> subscribers = subscribersBytopic.get(topic);
-		if (subscribers != null) {
-			subscribers.remove(actor);
-		} else {
-			Logger.error(this, "Cannot unsubscribe %s because it is not subscribed by %s\n", topic,
-					actor.getSimpleName());
+		lock.lock();
+		try {
+			final Set<Actor> subscribers = subscribersBytopic.get(topic);
+			if (subscribers != null) {
+				subscribers.remove(actor);
+			} else {
+				Logger.error(this, "Cannot unsubscribe %s because it is not subscribed by %s\n", topic,
+						actor.getSimpleName());
+			}
+		} finally {
+			lock.unlock();
 		}
 	}
 }

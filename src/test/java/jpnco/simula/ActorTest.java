@@ -1,6 +1,8 @@
 package jpnco.simula;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +20,11 @@ import jpnco.simula.engine.EngineImpl;
 import jpnco.simula.engine.EventImpl;
 import jpnco.simula.engine.IdBuilder;
 
+/**
+ * Tests the default methods of the {@link Actor} interface: compareTo,
+ * getEngine, getName, getSimpleName, post, purgeEvents, run, stopMe, subscribe,
+ * afterStart and beforeStop.
+ */
 class ActorTest {
 
 	private class AnActor implements Actor {
@@ -123,6 +130,35 @@ class ActorTest {
 		final Actor actor = new AnActor();
 		actor.subscribe(TOPIC);
 		verify(engine).subscribe(actor, TOPIC);
+	}
+
+	@Test
+	void testAfterStartDefaultDoesNothing() {
+		final Actor actor = new AnActor();
+		actor.afterStart();
+		verify(delegate, Mockito.never()).run();
+	}
+
+	@Test
+	void testBeforeStopDefaultDoesNothing() {
+		final Actor actor = new AnActor();
+		actor.beforeStop();
+		verify(delegate, Mockito.never()).run();
+	}
+
+	@Test
+	void testRunDelegatesToDelegate() {
+		final Actor actor = new AnActor();
+		actor.run();
+		verify(delegate).run();
+	}
+
+	@Test
+	void testRunRethrowsDelegationError() {
+		final Actor actor = new AnActor();
+		doThrow(new RuntimeException("boom")).when(delegate).run();
+		assertThrows(RuntimeException.class, actor::run);
+		verify(engine).unregister(actor);
 	}
 
 }
