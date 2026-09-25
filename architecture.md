@@ -64,6 +64,19 @@ classDiagram
         -currentTime int
         -alarms Map~String, Alarm~
     }
+    class Barrier {
+        -participants int
+        -readyTopic String
+        -completeTopic String
+        -mode BarrierMode
+        -distinct boolean
+        -count int
+    }
+    class BarrierMode {
+        <<enum>>
+        SINGLE_USE
+        CYCLIC
+    }
     class Logger
     class ActorDelegate
     class IdBuilder
@@ -77,11 +90,14 @@ classDiagram
     Actor <|.. EngineImpl
     Actor <|.. TimeSource
     Actor <|.. Logger
+    Actor <|.. Barrier
     Actor <|.. ActorDelegate
+    Barrier *-- BarrierMode : mode
     Engine <|.. TimeSource
     ActorDelegate o-- Event : processes
     IdBuilder ..> EngineImpl : nextId
     IdBuilder ..> TimeSource : nextId
+    IdBuilder ..> Barrier : nextId
 ```
 
 ## Data Model

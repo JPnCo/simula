@@ -125,9 +125,12 @@
 					<java>
 						<includes>
 							<include>src/main/java/jpnco/simula/engine/ExecutionMode.java</include>
+							<include>src/main/java/jpnco/simula/actors/Barrier.java</include>
+							<include>src/main/java/jpnco/simula/actors/BarrierMode.java</include>
 							<include>src/test/java/jpnco/simula/engine/ExecutionModeTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/ConcurrencyTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java</include>
+							<include>src/test/java/jpnco/simula/actors/BarrierTest.java</include>
 						</includes>
 						<googleJavaFormat>
 							<version>1.35.0</version>
