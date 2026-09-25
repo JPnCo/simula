@@ -88,6 +88,13 @@ public final class Barrier implements Actor {
     subscribe(readyTopic);
   }
 
+  /**
+   * Returns whether this Barrier is equal to the given object. Two barriers are equal when they
+   * have the same id.
+   *
+   * @param obj the object to compare with this barrier
+   * @return {@code true} if the object is a barrier with the same id, {@code false} otherwise
+   */
   @Override
   public boolean equals(final Object obj) {
     if (this == obj) {
@@ -103,16 +110,31 @@ public final class Barrier implements Actor {
     return Objects.equals(id, other.id);
   }
 
+  /**
+   * Returns the delegate that runs the standard event loop of this actor.
+   *
+   * @return the delegate of this barrier
+   */
   @Override
   public Actor getDelegate() {
     return delegate;
   }
 
+  /**
+   * Returns the unique id of this barrier.
+   *
+   * @return the id of this barrier
+   */
   @Override
   public Integer getId() {
     return id;
   }
 
+  /**
+   * Returns a hash code for this barrier based on its id, consistent with {@link #equals(Object)}.
+   *
+   * @return the hash code of this barrier
+   */
   @Override
   public int hashCode() {
     return Objects.hash(id);

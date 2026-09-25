@@ -8,6 +8,13 @@ import java.util.concurrent.TimeUnit;
 import jpnco.simula.Actor;
 import jpnco.simula.Event;
 
+/**
+ * The default implementation of the {@link Event} interface. An event captures
+ * a fact signaled on a named topic at a given instant, and may be standard,
+ * prioritized or delayed.
+ *
+ * @author Jean-Pascal Cozic
+ */
 public final class EventImpl implements Event {
 
 	/**
@@ -119,6 +126,15 @@ public final class EventImpl implements Event {
 		startTime = System.currentTimeMillis() + delay;
 	}
 
+	/**
+	 * Compares this event with another delayed element. Prioritized events are
+	 * ordered by their priority, delayed events by their remaining delay, and all
+	 * other events compare equal.
+	 *
+	 * @param o the delayed object to compare with this event
+	 * @return a negative, zero or positive value as this event is ordered before,
+	 *         equal to or after the given object
+	 */
 	@Override
 	public int compareTo(final Delayed o) {
 		Objects.requireNonNull(o);
@@ -132,6 +148,14 @@ public final class EventImpl implements Event {
 		return 0;
 	}
 
+	/**
+	 * Duplicates this event, replacing its source with the supplied new source.
+	 * This is used to forward an event between two engines while keeping the
+	 * original payload and timing.
+	 *
+	 * @param newSource the actor to use as the source of the clone
+	 * @return the cloned event carrying the new source
+	 */
 	@Override
 	public Event duplicate(final Actor newSource) {
 		Objects.requireNonNull(newSource);
@@ -146,6 +170,14 @@ public final class EventImpl implements Event {
 		return clone;
 	}
 
+	/**
+	 * Returns whether this event is equal to the given object. Two events are
+	 * equal when all their attributes (topic, source, time, priority, delay and
+	 * parameters) are equal.
+	 *
+	 * @param obj the object to compare with this event
+	 * @return {@code true} if the object is an equal event, {@code false} otherwise
+	 */
 	@Override
 	public boolean equals(final Object obj) {
 		if (this == obj) {
@@ -163,6 +195,13 @@ public final class EventImpl implements Event {
 				&& Objects.equals(source, other.source) && time == other.time && Objects.equals(topic, other.topic);
 	}
 
+	/**
+	 * Returns the remaining delay of this event in the given time unit. For a
+	 * non-delayed event the remaining delay is the negative elapsed time.
+	 *
+	 * @param unit the time unit of the returned delay
+	 * @return the remaining delay of this event in the given unit
+	 */
 	@Override
 	public long getDelay(final TimeUnit unit) {
 		Objects.requireNonNull(unit);
@@ -170,31 +209,62 @@ public final class EventImpl implements Event {
 		return unit.convert(diff, TimeUnit.MILLISECONDS);
 	}
 
+	/**
+	 * Returns a copy of the parameters of this event.
+	 *
+	 * @return the specific parameters of this event
+	 */
 	@Override
 	public Object[] getParameters() {
 		return Arrays.copyOf(parameters, parameters.length);
 	}
 
+	/**
+	 * Returns the priority of this event.
+	 *
+	 * @return the priority of this event
+	 */
 	@Override
 	public int getPriority() {
 		return priority;
 	}
 
+	/**
+	 * Returns the actor that signaled this event.
+	 *
+	 * @return the source actor of this event
+	 */
 	@Override
 	public Actor getSource() {
 		return source;
 	}
 
+	/**
+	 * Returns the time at which this event was signaled.
+	 *
+	 * @return the signal time of this event
+	 */
 	@Override
 	public int getTime() {
 		return time;
 	}
 
+	/**
+	 * Returns the topic of this event.
+	 *
+	 * @return the topic of this event
+	 */
 	@Override
 	public String getTopic() {
 		return topic;
 	}
 
+	/**
+	 * Returns a hash code for this event based on all its attributes, consistent
+	 * with {@link #equals(Object)}.
+	 *
+	 * @return the hash code of this event
+	 */
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -204,16 +274,32 @@ public final class EventImpl implements Event {
 		return result;
 	}
 
+	/**
+	 * Returns whether this event is delayed.
+	 *
+	 * @return {@code true} if the event is delayed, {@code false} otherwise
+	 */
 	@Override
 	public boolean isDelayed() {
 		return isDelayed;
 	}
 
+	/**
+	 * Returns whether this event is prioritized.
+	 *
+	 * @return {@code true} if the event is prioritized, {@code false} otherwise
+	 */
 	@Override
 	public boolean isPrioritized() {
 		return isPrioritized;
 	}
 
+	/**
+	 * Returns a textual representation of this event including its topic and, when
+	 * applicable, its delay or priority.
+	 *
+	 * @return a string representation of this event
+	 */
 	@Override
 	public String toString() {
 		final StringBuffer buf = new StringBuffer();

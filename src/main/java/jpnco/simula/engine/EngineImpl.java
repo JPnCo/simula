@@ -38,14 +38,37 @@ public final class EngineImpl implements Engine {
 	private final ExecutionMode executionMode;
 	private final ReentrantLock lock = new ReentrantLock();
 
+	/**
+	 * Builds a root engine with the default virtual-thread execution mode
+	 * (FR-002).
+	 *
+	 * @param title  the name of this engine
+	 * @param parent the parent engine, or {@code null} for the root engine
+	 */
 	public EngineImpl(final String title, final Engine parent) {
 		this(title, parent, 0, ExecutionMode.VIRTUAL);
 	}
 
+	/**
+	 * Builds an engine with an explicit execution mode (FR-003).
+	 *
+	 * @param title  the name of this engine
+	 * @param parent the parent engine, or {@code null} for the root engine
+	 * @param mode   the execution mode of this engine
+	 */
 	public EngineImpl(final String title, final Engine parent, final ExecutionMode mode) {
 		this(title, parent, 0, mode);
 	}
 
+	/**
+	 * Builds an engine with the given time factor and execution mode, registering
+	 * and starting its logger and (for the root engine) its time source (FR-003).
+	 *
+	 * @param title     the name of this engine
+	 * @param parent    the parent engine, or {@code null} for the root engine
+	 * @param timeFactor the time factor of this engine
+	 * @param mode      the execution mode of this engine
+	 */
 	private EngineImpl(final String title, final Engine parent, final int timeFactor, final ExecutionMode mode) {
 		this.parent = parent;
 		this.executionMode = Objects.requireNonNull(mode);
@@ -74,14 +97,34 @@ public final class EngineImpl implements Engine {
 		subscribe(Engine.TIME_EVENT);
 	}
 
+	/**
+	 * Builds a root engine with the default virtual-thread execution mode and the
+	 * given time factor (FR-002).
+	 *
+	 * @param title      the name of this engine
+	 * @param timeFactor the time factor of this engine
+	 */
 	public EngineImpl(final String title, final int timeFactor) {
 		this(title, null, timeFactor, ExecutionMode.VIRTUAL);
 	}
 
+	/**
+	 * Builds a root engine with the given time factor and execution mode
+	 * (FR-003).
+	 *
+	 * @param title      the name of this engine
+	 * @param timeFactor the time factor of this engine
+	 * @param mode       the execution mode of this engine
+	 */
 	public EngineImpl(final String title, final int timeFactor, final ExecutionMode mode) {
 		this(title, null, timeFactor, mode);
 	}
 
+	/**
+	 * Adds a child engine to this engine, guarded by the engine lock (FR-012).
+	 *
+	 * @param child the child to add
+	 */
 	@Override
 	public void addChild(final Engine child) {
 		lock.lock();
@@ -92,6 +135,13 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Returns whether this engine is equal to the given object. Two engines are
+	 * equal when they have the same id.
+	 *
+	 * @param obj the object to compare with this engine
+	 * @return {@code true} if the object is an engine with the same id
+	 */
 	@Override
 	public boolean equals(final Object obj) {
 		if (this == obj) {
@@ -117,36 +167,72 @@ public final class EngineImpl implements Engine {
 		return !EngineImpl.class.equals(actor.getClass()) && !Logger.class.equals(actor.getClass());
 	}
 
+	/**
+	 * An engine has no delegate.
+	 *
+	 * @return always throws {@link UnsupportedOperationException}
+	 */
 	@Override
 	public Actor getDelegate() {
 		throw new UnsupportedOperationException();
 	}
 
+	/**
+	 * Returns this engine, since an engine is its own engine.
+	 *
+	 * @return this engine
+	 */
 	@Override
 	public Engine getEngine() {
 		return this;
 	}
 
+	/**
+	 * Returns the unique id of this engine.
+	 *
+	 * @return the id of this engine
+	 */
 	@Override
 	public Integer getId() {
 		return id;
 	}
 
+	/**
+	 * Returns the logger actor of this engine.
+	 *
+	 * @return the logger of this engine
+	 */
 	@Override
 	public Logger getLogger() {
 		return logger;
 	}
 
+	/**
+	 * Returns the name of this engine.
+	 *
+	 * @return the name of this engine
+	 */
 	@Override
 	public String getName() {
 		return name;
 	}
 
+	/**
+	 * Returns the parent engine of this engine, or {@code null} for the root
+	 * engine.
+	 *
+	 * @return the parent engine
+	 */
 	@Override
 	public Engine getParent() {
 		return parent;
 	}
 
+	/**
+	 * Returns the simple name of this engine, which is its name.
+	 *
+	 * @return the name of this engine
+	 */
 	@Override
 	public String getSimpleName() {
 		return getName();
@@ -173,6 +259,12 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Returns the current simulated time, from the time source or the parent
+	 * engine. Returns {@code 0} while the time source is not yet initialized.
+	 *
+	 * @return the current simulated time
+	 */
 	@Override
 	public int getTime() {
 		// timeSource may be null during initialization. So time is 0.
@@ -185,6 +277,12 @@ public final class EngineImpl implements Engine {
 		return 0;
 	}
 
+	/**
+	 * Returns the time factor of this engine, or that of its parent when it has
+	 * one.
+	 *
+	 * @return the time factor of this engine
+	 */
 	@Override
 	public int getTimeFactor() {
 		if (parent != null) {
@@ -193,16 +291,33 @@ public final class EngineImpl implements Engine {
 		return TIME_FACTOR;
 	}
 
+	/**
+	 * Returns the time source of this engine, or {@code null} for a child engine.
+	 *
+	 * @return the time source of this engine
+	 */
 	@Override
 	public TimeSource getTimeSource() {
 		return timeSource;
 	}
 
+	/**
+	 * Returns a hash code for this engine based on its id, consistent with
+	 * {@link #equals(Object)}.
+	 *
+	 * @return the hash code of this engine
+	 */
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);
 	}
 
+	/**
+	 * Offers the event to this engine's queue, yielding until the event is
+	 * accepted.
+	 *
+	 * @param event the event to post
+	 */
 	@Override
 	public void post(final Event event) {
 		while (!events.offer(event)) {
@@ -211,26 +326,54 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Processes a subscribed event. Any event reaching this default handler is
+	 * unexpected and is logged as an error.
+	 *
+	 * @param event the event to process
+	 */
 	@Override
 	public void process(final Event event) {
 		Logger.error(this, "Unexpected event %s.\n", event.getTopic());
 	}
 
+	/**
+	 * Handles a START event by forwarding it to the child engines.
+	 *
+	 * @param event the START event to process
+	 */
 	private void processStartEvent(final Event event) {
 		Logger.debug(this, "===== processStartEvent(%s) =====\n", getName());
 		signalToChildren(event);
 	}
 
+	/**
+	 * Handles a STOP event by forwarding it to the child engines.
+	 *
+	 * @param event the STOP event to process
+	 */
 	private void processStopEvent(final Event event) {
 		Logger.debug(this, "===== processStopEvent(%s) =====\n", getName());
 		signalToChildren(event);
 	}
 
+	/**
+	 * Handles a STOPPED_ACTOR event by unregistering the stopped actor.
+	 *
+	 * @param event the STOPPED_ACTOR event to process
+	 * @return whether no actor remains registered
+	 */
 	private boolean processStoppedActorEvent(final Event event) {
 		Logger.debug(this, "Actor %s is stopped\n", event.getSource().getName());
 		return unregister(event.getSource());
 	}
 
+	/**
+	 * Handles a STOPPED_ENGINE event by removing the stopped child engine,
+	 * guarded by the engine lock (FR-012).
+	 *
+	 * @param event the STOPPED_ENGINE event to process
+	 */
 	private void processStoppedEngineEvent(final Event event) {
 		final Engine child = (Engine) event.getParameters()[0];
 		Logger.trace(this, "Child engine %s is stopped\n", child.getName());
@@ -242,11 +385,21 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Handles a TIME event by forwarding it to the child engines.
+	 *
+	 * @param event the TIME event to process
+	 */
 	private void processTimeEvent(final Event event) {
 		Logger.trace(this, "signals time event to child engines\n");
 		signalToChildren(event);
 	}
 
+	/**
+	 * Registers an actor in this engine, guarded by the engine lock (FR-012).
+	 *
+	 * @param actor the actor to register
+	 */
 	private void register(final Actor actor) {
 		Logger.trace(this, "Registering actor %s:%d\n", actor.getName(), actor.getId());
 		lock.lock();
@@ -257,6 +410,13 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Registers and starts an actor on a thread consistent with the engine's
+	 * execution mode (FR-001, FR-004).
+	 *
+	 * @param actor the actor to register and start
+	 * @return the supplied actor
+	 */
 	@Override
 	public Actor registerAndStart(final Actor actor) {
 		register(actor);
@@ -264,6 +424,11 @@ public final class EngineImpl implements Engine {
 		return actor;
 	}
 
+	/**
+	 * Runs the main loop of this engine, processing its event queue until the
+	 * engine is stopped (no actor and no child engine remains). When stopped, a
+	 * child engine signals its parent.
+	 */
 	@Override
 	public void run() {
 		try {
@@ -325,6 +490,13 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Signals an event to all actors subscribed to its topic. For a STOP event
+	 * the subscribers are sorted and posted in order so that the logger stops
+	 * last.
+	 *
+	 * @param event the event to signal
+	 */
 	@Override
 	public void signal(final Event event) {
 		Objects.requireNonNull(event);
@@ -344,6 +516,12 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Signals an event to all child engines, duplicating the event for each
+	 * child, guarded by the engine lock (FR-012).
+	 *
+	 * @param event the event to signal to the child engines
+	 */
 	@Override
 	public void signalToChildren(final Event event) {
 		Objects.requireNonNull(event);
@@ -355,6 +533,10 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Starts this engine by signaling a START event to its subscribers, which
+	 * forwards it to child engines and actors.
+	 */
 	@Override
 	public void start() {
 		Logger.trace(this, "starting (%s)...\n", getName());
@@ -386,6 +568,10 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Stops this engine by signaling a STOP event to its subscribers, which
+	 * forwards it to child engines and actors (FR-008).
+	 */
 	@Override
 	public void stop() {
 		Logger.debug(this, "===== stop(%s) =====\n", getName());
@@ -393,6 +579,12 @@ public final class EngineImpl implements Engine {
 		signal(stop);
 	}
 
+	/**
+	 * Subscribes an actor to a topic, guarded by the engine lock (FR-012).
+	 *
+	 * @param actor the actor that must subscribe the topic
+	 * @param topic the topic to subscribe
+	 */
 	@Override
 	public void subscribe(final Actor actor, final String topic) {
 		Objects.requireNonNull(actor);
@@ -411,6 +603,13 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Returns a textual representation of this engine including its name, the
+	 * number of child engines and actors, and the list of registered actors,
+	 * guarded by the engine lock.
+	 *
+	 * @return a string representation of this engine
+	 */
 	@Override
 	public String toString() {
 		final StringBuffer buf = new StringBuffer();
@@ -443,6 +642,13 @@ public final class EngineImpl implements Engine {
 		return buf.toString();
 	}
 
+	/**
+	 * Unregisters an actor, removing it from the registered actors and from all
+	 * topic subscription sets, guarded by the engine lock (FR-012).
+	 *
+	 * @param actor the actor to unregister
+	 * @return {@code true} if no actor remains registered
+	 */
 	@Override
 	public boolean unregister(final Actor actor) {
 		Objects.requireNonNull(actor);
@@ -466,6 +672,12 @@ public final class EngineImpl implements Engine {
 		}
 	}
 
+	/**
+	 * Unsubscribes an actor from a topic, guarded by the engine lock (FR-012).
+	 *
+	 * @param actor the actor that must unsubscribe the topic
+	 * @param topic the topic to unsubscribe
+	 */
 	@Override
 	public void unsubscribe(final Actor actor, final String topic) {
 		Objects.requireNonNull(actor);

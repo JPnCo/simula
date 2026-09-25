@@ -24,7 +24,7 @@ import java.util.concurrent.Delayed;
 public interface Event extends Cloneable, Delayed {
 
 	/**
-	 * Duplicate an event. This method is used to forward event between two
+	 * Duplicates an event. This method is used to forward event between two
 	 * engines.
 	 *
 	 * @param source the source of the clone

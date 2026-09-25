@@ -53,6 +53,15 @@ public interface Actor extends Runnable, Comparable<Actor> {
 	default void beforeStop() {
 	}
 
+	/**
+	 * Compares this actor with another actor based on their ids in descending
+	 * order. This method is used to order actors, for example in a sorted set,
+	 * so that actors with the highest id come first.
+	 *
+	 * @param o the actor to be compared
+	 * @return a negative integer, zero, or a positive integer as this actor is
+	 *         greater than, equal to, or less than the specified actor
+	 */
 	@Override
 	default int compareTo(final Actor o) {
 		return -getId().compareTo(o.getId());
@@ -123,6 +132,11 @@ public interface Actor extends Runnable, Comparable<Actor> {
 		getDelegate().purgeEvents();
 	}
 
+	/**
+	 * Runs this actor by delegating to its delegate. If the delegate throws a
+	 * {@link Throwable}, the actor is unregistered from its engine before the
+	 * error is rethrown.
+	 */
 	@Override
 	default void run() {
 		Logger.debug(this, "Running actor by delegation\n");

@@ -99,10 +99,19 @@ public final class TimeSource implements Actor {
 			return topic;
 		}
 
+		/**
+		 * Returns whether this alarm is periodic.
+		 *
+		 * @return {@code true} if the alarm repeats, {@code false} otherwise
+		 */
 		public boolean isPeriodic() {
 			return period != Alarm.NO_PERIOD;
 		}
 
+		/**
+		 * Advances the time to fire by the period of this alarm, for periodic
+		 * alarms.
+		 */
 		public void update() {
 			timeToFire += period;
 
@@ -119,10 +128,16 @@ public final class TimeSource implements Actor {
 		private final ScheduledExecutorService scheduler;
 		private TimeSource timeSource;
 
+		/**
+		 * Builds a clock backed by a single-thread scheduler.
+		 */
 		Clock() {
 			scheduler = Executors.newScheduledThreadPool(1);
 		}
 
+		/**
+		 * Advances the time source to the next second.
+		 */
 		@Override
 		public void run() {
 			timeSource.setTime(++currentTime);
@@ -156,6 +171,13 @@ public final class TimeSource implements Actor {
 	private final Engine engine;
 	private final Clock clock;
 
+	/**
+	 * Builds a time source for the given engine and time factor, subscribing to
+	 * the START and STOP events and starting its internal clock.
+	 *
+	 * @param engine     the engine that runs this time source
+	 * @param timeFactor the time factor used to expand simulated seconds
+	 */
 	public TimeSource(final Engine engine, final int timeFactor) {
 		TIME_FACTOR = timeFactor;
 		TIMEOUT = 1 * TIME_FACTOR;
@@ -170,6 +192,13 @@ public final class TimeSource implements Actor {
 		clock.start(this, TIMEOUT);
 	}
 
+	/**
+	 * Returns whether this time source is equal to the given object. Two time
+	 * sources are equal when they have the same id.
+	 *
+	 * @param obj the object to compare with this time source
+	 * @return {@code true} if the object is a time source with the same id
+	 */
 	@Override
 	public boolean equals(final Object obj) {
 		if (this == obj) {
@@ -195,16 +224,31 @@ public final class TimeSource implements Actor {
 		getEngine().signal(fire);
 	}
 
+	/**
+	 * This actor has no delegate.
+	 *
+	 * @return always throws {@link UnsupportedOperationException}
+	 */
 	@Override
 	public Actor getDelegate() {
 		throw new UnsupportedOperationException();
 	}
 
+	/**
+	 * Returns the engine that runs this time source.
+	 *
+	 * @return the engine of this time source
+	 */
 	@Override
 	public Engine getEngine() {
 		return engine;
 	}
 
+	/**
+	 * Returns the unique id of this time source.
+	 *
+	 * @return the id of this time source
+	 */
 	@Override
 	public Integer getId() {
 		return id;
@@ -219,11 +263,23 @@ public final class TimeSource implements Actor {
 		return currentTime;
 	}
 
+	/**
+	 * Returns a hash code for this time source based on its id, consistent with
+	 * {@link #equals(Object)}.
+	 *
+	 * @return the hash code of this time source
+	 */
 	@Override
 	public int hashCode() {
 		return Objects.hash(id);
 	}
 
+	/**
+	 * Offers the event to this time source's queue, blocking by yielding until
+	 * the event is accepted.
+	 *
+	 * @param event the event to post
+	 */
 	@Override
 	public void post(final Event event) {
 		while (!events.offer(event)) {
@@ -281,6 +337,9 @@ public final class TimeSource implements Actor {
 		alarms.put(topic, alarm);
 	}
 
+	/**
+	 * Clears the queue of pending events of this time source.
+	 */
 	@Override
 	public void purgeEvents() {
 		events.clear();
