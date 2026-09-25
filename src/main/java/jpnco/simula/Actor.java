@@ -31,9 +31,6 @@ import jpnco.simula.engine.EventImpl;
  * <li>getId()
  * <li>process(Event event) <br>
  * <br>
- * The simula.engine.SimpleActor is designed to implements the delegate pattern
- * for an actor.<br>
- * <br>
  *
  * @author Jean-Pascal Cozic
  *
