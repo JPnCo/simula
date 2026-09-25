@@ -65,12 +65,13 @@ Validation guide for the `002-configurable-threads` feature. It proves the featu
 
 ### 8. Traffic-light example end-to-end (FR-001..006, SC-003)
 
-- Build: `mvn -o verify` (must stay BUILD SUCCESS; the `examples` package is excluded from the JaCoCo `check` rule so the 97% gate on the framework bundle is preserved).
-- Run in **virtual** mode (default), console display: `mvn -o exec:java -Dexec.args="virtual"`
-- Run in **classic** mode, console display: `mvn -o exec:java -Dexec.args="classic"`
-- Run the **GUI** display (runs until the window is closed): `mvn -o exec:java -Dexec.args="virtual gui"`
-- Fallback (module launcher): `java -p target/classes -m Simula/jpnco.simula.examples.trafficlight.TrafficLightDemo classic`
-- **Expected**: the demo builds a 5×5 grid (each segment 250 m, vehicles at a fixed speed in 15–45 km/h), a traffic light at every intersection with a short green segment (~20 m) marking the green road, and a fleet of vehicles that advance continuously, may turn randomly at interior intersections, and must turn right or left at the grid edges rather than leaving it. The console display prints the grid each simulated second; the GUI shows it in real time. The two modes produce an equivalent outcome summary (same vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003).
+The `trafficlight` sample no longer lives in this project. It was extracted into a separate project **`C:\JPC\PERSO\SDD\SIMULA_SAMPLES`** (Maven artifact `jpnco:simula-samples:0.0.1-SNAPSHOT`) that depends on this `simula` artifact. Build this project first (`mvn -o clean install`) so the sample resolves it from the local `~/.m2`, then build and run the sample from `SIMULA_SAMPLES`:
+
+- Build: `mvn -o verify` in the `simula` project must stay BUILD SUCCESS; since the `examples` package was removed from it, the JaCoCo `check` rule no longer needs a sample exclusion and the 97% gate applies to the whole framework bundle.
+- Run in **virtual** mode (default), console display: `mvn -o exec:java -Dexec.args="virtual"` (in `SIMULA_SAMPLES`)
+- Run in **classic** mode, console display: `mvn -o exec:java -Dexec.args="classic"` (in `SIMULA_SAMPLES`)
+- Run the **GUI** display (runs until the window is closed): `mvn -o exec:java -Dexec.args="virtual gui"` (in `SIMULA_SAMPLES`)
+- **Expected**: the demo builds a 3×3 grid of cells bounded by 4×4 roads with an intersection at every crossing (16 intersections, each segment 100 m, vehicles at a fixed speed in 15–45 km/h), a traffic light at every intersection, and a fleet of vehicles that advance continuously along the roads, may turn randomly at interior intersections, and must turn right or left at the grid edges rather than leaving it. The console display prints the grid each simulated second; the GUI shows it in real time. The two modes produce an equivalent outcome summary (same vehicle totals), demonstrating behavioral equivalence (FR-005, SC-003). See `sample-architecture.md` for the sample's architecture.
 
 ## References
 

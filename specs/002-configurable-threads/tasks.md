@@ -243,4 +243,15 @@ description: "Task list for the Configurable Thread Execution feature"
 
 **?? CRITICAL**: T069 addresses Constitution VI, which is a MUST principle; it is emitted first.
 
-- [ ] T069 Add FR/SC identifier citations to the Javadoc of `GridDisplay.java`, `Vehicle.java`, `VehicleView.java`, `GridState.java`, `Direction.java` and `TrafficMonitor.java` in `src/main/java/jpnco/simula/examples/trafficlight/`, per class and method, citing the FR-###/SC-### identifiers each element participates in implementing (Constitution VI; plan.md addendum Constitution Check declares "Javadoc on example classes/methods citing FR/SC | PASS" — currently contradicted) (CRITICAL, `contradicts`)
+- [X] T069 Remove the FR/SC identifier citations from the Javadoc of the example classes in `src/main/java/jpnco/simula/examples/trafficlight/` (`TrafficCoordinator.java`, `TrafficLightDemo.java`, `TrafficLightGui.java`; the six files named in the original task were already clean). Samples do not participate in the implementation, so they must not reference FR-###/SC-### identifiers. This aligns with the plan.md addendum Constitution Check for gate VI ("Javadoc on example classes/methods" without FR/SC citations). (Constitution VI; plan.md addendum Constitution Check declares "Javadoc on example classes/methods citing FR/SC | PASS" — currently contradicted) (CRITICAL, `contradicts`)
+
+---
+
+## Phase 11: Extraction of the sample (addendum)
+
+The `trafficlight` sample was **extracted** from this project into a separate Maven project **`C:\JPC\PERSO\SDD\SIMULA_SAMPLES`** (artifact `jpnco:simula-samples:0.0.1-SNAPSHOT`, package `jpnco.simula.samples.trafficlight`). The `examples` package was deleted from this `simula` project and its wiring removed (see plan.md addendum). Phases 9–10 above remain valid as the historical record of how the sample was first created and hardened before extraction.
+
+- [X] T070 Delete the `jpnco/simula/examples` package from the `simula` project (`src/main/java/jpnco/simula/examples/**`), whose `trafficlight` sample now lives in `SIMULA_SAMPLES`.
+- [X] T071 Remove from `pom.xml` the JaCoCo `check` exclusion `jpnco/simula/examples/**`, the `exec-maven-plugin` (`mainClass = …TrafficLightDemo`), and the spotless include for `examples/**`.
+- [X] T072 Remove from `module-info.java` the `exports jpnco.simula.examples.*` lines and `requires java.desktop;` (the Swing GUI in the sample was the only `java.desktop` consumer).
+- [X] T073 Update docs (`data-model.md` addendum, `plan.md` addendum, `quickstart.md` §8, `tasks.md` this section) to reflect that the sample lives in `SIMULA_SAMPLES` and how to run it.

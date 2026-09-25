@@ -145,7 +145,7 @@ Add a self-contained, runnable **grid traffic-light simulation** under `jpnco.si
 | # | Principle | Gate | Status |
 |---|-----------|------|--------|
 | II | Coverage ≥97% | Example excluded from JaCoCo `check`; framework bundle unchanged | PASS (justified) |
-| VI | Documentation | Javadoc on example classes/methods citing FR/SC | PASS |
+| VI | Documentation | Javadoc on example classes/methods | PASS (no FR/SC citations on samples; they do not implement the requirements) |
 | VII | Named Literals | All durations/periods/topics as named constants | PASS |
 
 All gates pass; the JaCoCo exclusion is a deliberate, documented decision so the illustrative sample does not erode the framework coverage gate.
@@ -175,3 +175,13 @@ module-info.java                # + requires java.desktop (for the Swing GUI), e
 3. **Single grid with turn-at-edge movement**: a single 5×5 grid with a light at each intersection; a vehicle at an edge cannot leave the grid, so it must turn right or left there (only the valid side at a corner), keeping the fleet circulating within the grid. A single `TrafficCoordinator` actor owns the grid and advances all vehicles on each `TIME_EVENT`, avoiding races between vehicles and lights.
 4. **Lights, speeds and continuous movement**: each intersection's light alternates between letting north-south and east-west traffic flow, staggered across the grid. Each vehicle has a fixed speed in [15, 45] km/h and moves continuously along a segment (each segment is 250 m), advancing `speed × 1s` per `TIME_EVENT`; it only enters the next segment when its light is green for its direction, otherwise it stops at the boundary and waits. It may turn randomly at an intersection. A short green segment (~20 m) drawn at each intersection marks which road has green.
 5. **Deterministic equivalence and display choice**: all movement randomness (initial positions, speeds, turns) uses a fixed seed, so the same scenario produces the same outcome in both modes (FR-005, SC-003). The console mode runs `SIMULATED_SECONDS` (120) then the root engine stops every actor (FR-008); the GUI mode (`gui` display) runs until the window is closed and renders each snapshot on the Swing event dispatch thread via a `GridDisplay`.
+
+## Extraction of the sample (addendum)
+
+The `trafficlight` sample was **extracted** from this project into a separate Maven project **`C:\JPC\PERSO\SDD\SIMULA_SAMPLES`** (artifact `jpnco:simula-samples:0.0.1-SNAPSHOT`, no `module-info.java`, depends on the `jpnco:simula` artifact). Its package there is `jpnco.simula.samples.trafficlight` (with `actors`/`states` sub-packages). Consequently this `simula` project no longer contains an `examples` package, and the following were removed from `pom.xml` and `module-info.java`:
+- the JaCoCo `check` exclusion for `jpnco/simula/examples/**` (the 97% gate now covers the whole framework bundle);
+- the `exec-maven-plugin` (the demo's `mainClass`), now run from `SIMULA_SAMPLES`;
+- the spotless include for `examples/**`;
+- the `exports jpnco.simula.examples.*` lines and `requires java.desktop;` from `module-info.java` (the Swing GUI was the only `java.desktop` consumer).
+
+The tree above and key decisions 1–5 describe the sample as it was first designed; for its current home and how to run it, see `quickstart.md` §8 and `data-model.md` (addendum).
