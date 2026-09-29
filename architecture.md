@@ -15,6 +15,7 @@ classDiagram
     class Engine {
         <<interface>>
         +addChild(Engine)
+        +getChildren() List
         +getLogger()
         +getTime()
         +getTimeFactor()
@@ -78,6 +79,14 @@ classDiagram
         CYCLIC
     }
     class Logger
+    class SimulaSupervisor {
+        -states Map~Actor, Status~
+    }
+    class Status {
+        <<enum>>
+        STARTED
+        STOPPED
+    }
     class ActorDelegate
     class IdBuilder
 
@@ -91,13 +100,16 @@ classDiagram
     Actor <|.. TimeSource
     Actor <|.. Logger
     Actor <|.. Barrier
+    Actor <|.. SimulaSupervisor
     Actor <|.. ActorDelegate
     Barrier *-- BarrierMode : mode
+    SimulaSupervisor *-- Status : states
     Engine <|.. TimeSource
     ActorDelegate o-- Event : processes
     IdBuilder ..> EngineImpl : nextId
     IdBuilder ..> TimeSource : nextId
     IdBuilder ..> Barrier : nextId
+    IdBuilder ..> SimulaSupervisor : nextId
 ```
 
 ## Data Model
@@ -157,6 +169,7 @@ sequenceDiagram
     Dev->>E: start()
     E->>A: START event
     A->>A: afterStart()
+    A->>E: STARTED_ACTOR
     loop each simulated second
         TS->>TS: advance time
         TS->>E: TIME event
@@ -188,6 +201,7 @@ flowchart LR
 - **Execution mode**: actors run on virtual threads by default; classic platform threads are selected explicitly via an `ExecutionMode` constructor parameter (FR-001..FR-004).
 - **Locking**: all `synchronized` monitors are replaced with explicit `ReentrantLock` for uniform, explicit concurrency semantics (FR-010..FR-012).
 - **Unique ids**: a central `IdBuilder` assigns unique integer ids to engines, actors, and loggers.
+- **Lifecycle supervision**: a `STARTED_ACTOR_EVENT` is signaled by a component when it begins its behavior, symmetric to `STOPPED_ACTOR_EVENT`. The built-in actors (via standard delegation), the engine, and the time source emit it for themselves; a `SimulaSupervisor` subscribes to it and to the stop events and exposes a queryable started/stopped state (FR-001..FR-010). The engine also exposes its child engines as a non-modifiable, ordered list via `getChildren()` (FR-011). Actors from external projects that do not use standard delegation are not forced to emit it; the contract is documented (FR-007).
 
 ## Requirements Traceability
 
@@ -195,3 +209,5 @@ flowchart LR
 - Engine thread strategy: FR-004, FR-006, FR-008
 - Behavioral equivalence: FR-005, FR-013
 - Concurrency/locking: FR-010, FR-011, FR-012
+- SimulaSupervisor/lifecycle event: FR-001..FR-010
+- Expose engine children (`getChildren()`): FR-011

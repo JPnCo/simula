@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
@@ -126,6 +127,23 @@ class ActorDelegateTest {
 		delegate.run();
 		verify(delegator).afterStart();
 		verify(delegator).beforeStop();
+	}
+
+	@Test
+	void runSignalsStartedEventOnStart() {
+		final Event startEvent = mock(Event.class);
+		when(startEvent.getTopic()).thenReturn(Engine.START_EVENT);
+		when(startEvent.getSource()).thenReturn(delegate);
+		final Event stopEvent = mock(Event.class);
+		when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+		when(stopEvent.getSource()).thenReturn(delegate);
+		delegate.post(startEvent);
+		delegate.post(stopEvent);
+		delegate.run();
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, org.mockito.Mockito.atLeastOnce()).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(e -> Engine.STARTED_ACTOR_EVENT.equals(e.getTopic()) && delegator.equals(e.getSource())));
 	}
 
 	@Test

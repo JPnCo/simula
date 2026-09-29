@@ -1,7 +1,10 @@
 package jpnco.simula.engine;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -25,7 +28,7 @@ import jpnco.simula.actors.TimeSource;
 public final class EngineImpl implements Engine {
 
 	private final Map<Integer, Actor> actors = new ConcurrentHashMap<>();
-	private final Set<Engine> children = new HashSet<>();
+	private final Set<Engine> children = new LinkedHashSet<>();
 	private final LinkedBlockingQueue<Event> events = new LinkedBlockingQueue<>();
 	private final Integer id;
 	private final Engine parent;
@@ -241,6 +244,23 @@ public final class EngineImpl implements Engine {
 	}
 
 	/**
+	 * Returns the child engines of this engine as a non-modifiable list, in the
+	 * order in which they were added (FR-011), guarded by the engine lock
+	 * (FR-012).
+	 *
+	 * @return a non-modifiable, ordered list of the child engines
+	 */
+	@Override
+	public List<Engine> getChildren() {
+		lock.lock();
+		try {
+			return Collections.unmodifiableList(new ArrayList<>(children));
+		} finally {
+			lock.unlock();
+		}
+	}
+
+	/**
 	 * Returns the simple name of this engine, which is its name.
 	 *
 	 * @return the name of this engine
@@ -356,6 +376,7 @@ public final class EngineImpl implements Engine {
 	 */
 	private void processStartEvent(final Event event) {
 		Logger.debug(this, "===== processStartEvent(%s) =====\n", getName());
+		signal(EventImpl.createEvent(Engine.STARTED_ACTOR_EVENT, this));
 		signalToChildren(event);
 	}
 

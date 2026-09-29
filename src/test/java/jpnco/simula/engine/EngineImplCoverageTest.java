@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -134,6 +135,37 @@ class EngineImplCoverageTest {
   void addChildRegistersChild() {
     final EngineImpl child = new EngineImpl("addChildChild", root);
     assertNotNull(child.getParent());
+    child.stop();
+  }
+
+  @Test
+  void getChildrenReturnsAddedChildrenInOrder() {
+    final EngineImpl child1 = new EngineImpl("getChildrenChild1", root);
+    final EngineImpl child2 = new EngineImpl("getChildrenChild2", root);
+    final List<Engine> children = root.getChildren();
+    assertEquals(2, children.size());
+    assertEquals(child1, children.get(0));
+    assertEquals(child2, children.get(1));
+    child1.stop();
+    child2.stop();
+  }
+
+  @Test
+  void getChildrenReturnsNonModifiableList() {
+    final EngineImpl child = new EngineImpl("getChildrenChild3", root);
+    final List<Engine> children = root.getChildren();
+    assertThrows(UnsupportedOperationException.class, () -> children.add(null));
+    assertThrows(UnsupportedOperationException.class, () -> children.remove(0));
+    assertThrows(UnsupportedOperationException.class, () -> children.clear());
+    child.stop();
+  }
+
+  @Test
+  void getChildrenReturnsSnapshot() {
+    final List<Engine> before = root.getChildren();
+    final EngineImpl child = new EngineImpl("getChildrenChild4", root);
+    assertTrue(before.isEmpty());
+    assertFalse(root.getChildren().isEmpty());
     child.stop();
   }
 

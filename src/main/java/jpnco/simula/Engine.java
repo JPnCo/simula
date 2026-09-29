@@ -1,5 +1,7 @@
 package jpnco.simula;
 
+import java.util.List;
+
 import jpnco.simula.actors.Logger;
 import jpnco.simula.actors.TimeSource;
 
@@ -12,6 +14,15 @@ import jpnco.simula.actors.TimeSource;
  * the root engine implies to stop all the simulation.
  * <p>
  * A unique TimeSource
+ * <p>
+ * {@link #STARTED_ACTOR_EVENT} is a per-actor startup notification, symmetric
+ * to {@link #STOPPED_ACTOR_EVENT}. It is emitted by a component when it begins
+ * its behavior, with the component itself as the event's source. The built-in
+ * actors (via standard delegation), the engine, and the time source emit it for
+ * themselves. An actor created by an external project that does not use the
+ * standard delegation MAY emit it as well, by signaling an event on this topic
+ * with itself as source when its behavior starts; a supervision actor never
+ * fails when a component emits no such notification (FR-001, FR-007).
  *
  * @author Jean-Pascal Cozic
  *
@@ -21,6 +32,11 @@ public interface Engine extends Runnable, Actor {
 	final String LOG_EVENT = "LOG";
 	final String PURGE_QUEUE_EVENT = "PURGE_QUEUE";
 	final String START_EVENT = "START";
+	/**
+	 * Per-actor startup notification, symmetric to {@link #STOPPED_ACTOR_EVENT}.
+	 * Its source is the component that started (FR-001, FR-007).
+	 */
+	final String STARTED_ACTOR_EVENT = "STARTED_ACTOR";
 	final String STOP_EVENT = "STOP";
 	final String STOP_ME_EVENT = "STOP_ME";
 	final String STOPPED_ACTOR_EVENT = "STOPPED_ACTOR";
@@ -50,6 +66,14 @@ public interface Engine extends Runnable, Actor {
 	 * @return the parent of this engine.
 	 */
 	Engine getParent();
+
+	/**
+	 * Returns the child engines of this engine as a non-modifiable, ordered
+	 * collection, in the order in which they were added (FR-011).
+	 *
+	 * @return the child engines of this engine
+	 */
+	List<Engine> getChildren();
 
 	/**
 	 * Returns current time

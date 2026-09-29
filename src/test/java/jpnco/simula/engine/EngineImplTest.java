@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.Test;
 
 import jpnco.simula.actors.Logger;
 import jpnco.simula.actors.Logger.Level;
+import jpnco.simula.actors.SimulaSupervisor;
+import jpnco.simula.actors.SimulaSupervisor.Status;
 
 class EngineImplTest {
 
@@ -106,6 +109,26 @@ class EngineImplTest {
 		Logger.setActivated(engine, Level.TRACE, true);
 		Logger.setActivated(engine.getTimeSource(), Level.TRACE, true);
 		engine.stop();
+	}
+
+	@Test
+	void testEngineSignalsStartedEventForItself() throws InterruptedException {
+		System.out.println("---------- testEngineSignalsStartedEventForItself ----------");
+		Logger.forceLevel(Level.TRACE);
+		final String NAME = "EngineSignalsStarted";
+		final int TIME_FACTOR = 2;
+		final EngineImpl engine = new EngineImpl(NAME, TIME_FACTOR);
+		final SimulaSupervisor supervisor = new SimulaSupervisor(engine);
+		engine.registerAndStart(supervisor);
+		engine.start();
+		final long deadline = System.currentTimeMillis() + 3000;
+		while (System.currentTimeMillis() < deadline
+				&& supervisor.getStates().get(engine) != Status.STARTED) {
+			Thread.sleep(50);
+		}
+		engine.stop();
+		assertEquals(Status.STARTED, supervisor.getStates().get(engine));
+		assertTrue(supervisor.getStates().containsKey(engine));
 	}
 
 }

@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
@@ -375,6 +376,20 @@ class TimeSourceTest {
 		ts.post(selfEvent(ts, Engine.STOP_EVENT));
 		ts.run();
 		verify(engine, atLeast(1)).signal(any(Event.class));
+	}
+
+	@Test
+	void testRunSignalsStartedEventForItself() {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 200);
+		ts.post(selfEvent(ts, Engine.START_EVENT));
+		ts.post(selfEvent(ts, Engine.STOP_EVENT));
+		ts.run();
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(1)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.anyMatch(e -> Engine.STARTED_ACTOR_EVENT.equals(e.getTopic()) && ts.equals(e.getSource())));
 	}
 
 	@Test

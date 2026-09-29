@@ -354,6 +354,7 @@ public final class TimeSource implements Actor {
 		Logger.debug(this, "is running with TIME_FACTOR=%d\n", TIME_FACTOR);
 		try {
 			if (!runBeforeStart()) {
+				getEngine().signal(EventImpl.createEvent(Engine.STARTED_ACTOR_EVENT, this));
 				runAfterStart();
 			}
 		} catch (final Throwable exc) {

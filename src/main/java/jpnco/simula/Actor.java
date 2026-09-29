@@ -16,6 +16,11 @@ import jpnco.simula.engine.EventImpl;
  * <li>START_EVENT: an actor must wait this event to start its business
  * behavior. Usually, this event is posted on the root engine that forwards it
  * to its actors and its child engines.
+ * <li>STARTED_ACTOR_EVENT: an actor signals this event (with itself as source)
+ * when it begins its behavior. The built-in actors, the engine and the time
+ * source emit it for themselves. An actor that does not use the standard
+ * delegation MAY emit it when its behavior starts, so that a supervision actor
+ * can observe it (FR-001, FR-007).
  * <li>STOP_EVENT: when receiving this event, an actor must stop its behavior.
  * <li>STOP_ME_EVENT: an actor posts this event to "kill" himself ;
  * <li>STOPPED_ACTOR_EVENT: when an actor stops it must post this event to

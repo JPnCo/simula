@@ -232,6 +232,8 @@ public final class ActorDelegate implements Actor {
 	 * STOP_ME event is encountered, then signals that the actor is stopped.
 	 */
 	private void runAfterStart() {
+		// The delegator has started: notify observers before the main loop begins.
+		engine.signal(EventImpl.createEvent(Engine.STARTED_ACTOR_EVENT, delegator));
 		LOOP: while (true) {
 			try {
 				final Event event = events.poll(TIMEOUT, TimeUnit.SECONDS);
