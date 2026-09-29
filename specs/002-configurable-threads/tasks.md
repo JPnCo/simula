@@ -255,3 +255,11 @@ The `trafficlight` sample was **extracted** from this project into a separate Ma
 - [X] T071 Remove from `pom.xml` the JaCoCo `check` exclusion `jpnco/simula/examples/**`, the `exec-maven-plugin` (`mainClass = …TrafficLightDemo`), and the spotless include for `examples/**`.
 - [X] T072 Remove from `module-info.java` the `exports jpnco.simula.examples.*` lines and `requires java.desktop;` (the Swing GUI in the sample was the only `java.desktop` consumer).
 - [X] T073 Update docs (`data-model.md` addendum, `plan.md` addendum, `quickstart.md` §8, `tasks.md` this section) to reflect that the sample lives in `SIMULA_SAMPLES` and how to run it.
+
+---
+
+## Phase 12: Convergence
+
+**Purpose**: Close gaps found by `/speckit.converge` between the spec/plan/tasks and the implemented codebase. All requirements (FR-001..FR-013) and success criteria (SC-001..SC-008) are satisfied and the build is green with the 97% line+branch coverage gate met. One unrequested addition remains for awareness.
+
+- [X] T074 Review/justify or remove the unrequested child-engine constructor `EngineImpl(String title, Engine parent, int timeFactor)` added to the working tree in `src/main/java/jpnco/simula/engine/EngineImpl.java`; it is not called for by any task in this feature (`unrequested`). **Resolution**: retained — it completes the root/child symmetry for an explicit time factor (the root equivalent `EngineImpl(title, timeFactor)` already existed). Its Javadoc incorrectly described "platform-thread" while delegating to `ExecutionMode.VIRTUAL`; corrected to "virtual-thread".

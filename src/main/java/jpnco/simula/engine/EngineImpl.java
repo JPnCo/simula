@@ -121,6 +121,18 @@ public final class EngineImpl implements Engine {
 	}
 
 	/**
+	 * Builds a child engine with the given time factor and the default
+	 * virtual-thread execution mode (FR-002).
+	 *
+	 * @param title      the name of this engine
+	 * @param parent     the parent engine
+	 * @param timeFactor the time factor of this engine
+	 */
+	public EngineImpl(String title, Engine parent, int timeFactor) {
+		this(title, parent, timeFactor, ExecutionMode.VIRTUAL);
+	}
+
+	/**
 	 * Adds a child engine to this engine, guarded by the engine lock (FR-012).
 	 *
 	 * @param child the child to add

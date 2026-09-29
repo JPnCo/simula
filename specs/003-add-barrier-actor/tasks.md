@@ -29,10 +29,10 @@ description: "Task list for the Add Barrier Actor feature"
 
 **Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented.
 
-- [ ] T001 Create the `BarrierMode` enum in `src/main/java/jpnco/simula/actors/BarrierMode.java` with values `SINGLE_USE` and `CYCLIC` (FR-005, FR-006, FR-008, data-model.md; named literals per Constitution VII)
-- [ ] T002 [P] Write the Javadoc for the `BarrierMode` enum and the `Barrier` class/methods citing the FR/SC identifiers they implement (Constitution VI)
-- [ ] T003 [P] Update `src/main/java/jpnco/simula/actors/package-info.java` to document `Barrier` as a default actor (Constitution VI)
-- [ ] T004 [P] Update `architecture.md` at the repo root to mention the `Barrier` actor in the actor model (Constitution VIII, Mermaid diagrams, no history)
+- [X] T001 Create the `BarrierMode` enum in `src/main/java/jpnco/simula/actors/BarrierMode.java` with values `SINGLE_USE` and `CYCLIC` (FR-005, FR-006, FR-008, data-model.md; named literals per Constitution VII)
+- [X] T002 [P] Write the Javadoc for the `BarrierMode` enum and the `Barrier` class/methods citing the FR/SC identifiers they implement (Constitution VI)
+- [X] T003 [P] Update `src/main/java/jpnco/simula/actors/package-info.java` to document `Barrier` as a default actor (Constitution VI)
+- [X] T004 [P] Update `architecture.md` at the repo root to mention the `Barrier` actor in the actor model (Constitution VIII, Mermaid diagrams, no history)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
 
@@ -46,15 +46,15 @@ description: "Task list for the Add Barrier Actor feature"
 
 ### Tests for User Story 1 (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T010 [P] [US1] Unit test: a Barrier constructed with `participants = N` subscribes to the ready topic, in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T011 [US1] Unit test: `N` distinct ready signals fire the complete topic (FR-004), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T012 [US1] Unit test: fewer than `N` ready signals do not fire the complete topic (FR-003), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T013 [US1] Unit test: the complete event is signaled with the Barrier as source (FR-004), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T010 [P] [US1] Unit test: a Barrier constructed with `participants = N` subscribes to the ready topic, in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T011 [US1] Unit test: `N` distinct ready signals fire the complete topic (FR-004), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T012 [US1] Unit test: fewer than `N` ready signals do not fire the complete topic (FR-003), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T013 [US1] Unit test: the complete event is signaled with the Barrier as source (FR-004), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Create `src/main/java/jpnco/simula/actors/Barrier.java` implementing `Actor` with fields `participants`, `readyTopic`, `completeTopic`, `mode`, `distinct`, `count`, `readySources`, `id`, `delegate`, `engine`; constructor subscribes to `readyTopic` (FR-002, data-model.md)
-- [ ] T015 [US1] Implement `process(Event)` in `Barrier.java` to count ready events on `readyTopic` and signal the complete topic when `count >= participants` (FR-003, FR-004)
+- [X] T014 [US1] Create `src/main/java/jpnco/simula/actors/Barrier.java` implementing `Actor` with fields `participants`, `readyTopic`, `completeTopic`, `mode`, `distinct`, `count`, `readySources`, `id`, `delegate`, `engine`; constructor subscribes to `readyTopic` (FR-002, data-model.md)
+- [X] T015 [US1] Implement `process(Event)` in `Barrier.java` to count ready events on `readyTopic` and signal the complete topic when `count >= participants` (FR-003, FR-004)
 
 **Checkpoint**: US1 fully functional and testable independently.
 
@@ -68,12 +68,12 @@ description: "Task list for the Add Barrier Actor feature"
 
 ### Tests for User Story 2 (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T020 [P] [US2] Unit test: a single-use Barrier unsubscribes from the ready topic after firing (FR-005), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T021 [US2] Unit test: after a single-use Barrier fires, further ready events do not signal the complete topic again (FR-005, SC-002), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T020 [P] [US2] Unit test: a single-use Barrier unsubscribes from the ready topic after firing (FR-005), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T021 [US2] Unit test: after a single-use Barrier fires, further ready events do not signal the complete topic again (FR-005, SC-002), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] In `Barrier.process(Event)` and/or `afterStart`, when `mode == SINGLE_USE` and the barrier fires, unsubscribe from the ready topic and stop reacting (FR-005) in `src/main/java/jpnco/simula/actors/Barrier.java`
+- [X] T022 [US2] In `Barrier.process(Event)` and/or `afterStart`, when `mode == SINGLE_USE` and the barrier fires, unsubscribe from the ready topic and stop reacting (FR-005) in `src/main/java/jpnco/simula/actors/Barrier.java`
 
 **Checkpoint**: US1 AND US2 both work independently.
 
@@ -87,12 +87,12 @@ description: "Task list for the Add Barrier Actor feature"
 
 ### Tests for User Story 3 (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T030 [P] [US3] Unit test: a cyclic Barrier resets its counter after firing (FR-006), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T031 [US3] Unit test: a cyclic Barrier fires the complete topic once per completed cycle (FR-006, SC-003), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T030 [P] [US3] Unit test: a cyclic Barrier resets its counter after firing (FR-006), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T031 [US3] Unit test: a cyclic Barrier fires the complete topic once per completed cycle (FR-006, SC-003), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] In `Barrier.process(Event)`, when `mode == CYCLIC` and the barrier fires, reset `count` (and `readySources` when `distinct`) and remain subscribed (FR-006) in `src/main/java/jpnco/simula/actors/Barrier.java`
+- [X] T032 [US3] In `Barrier.process(Event)`, when `mode == CYCLIC` and the barrier fires, reset `count` (and `readySources` when `distinct`) and remain subscribed (FR-006) in `src/main/java/jpnco/simula/actors/Barrier.java`
 
 **Checkpoint**: US1, US2 AND US3 all work independently.
 
@@ -106,13 +106,13 @@ description: "Task list for the Add Barrier Actor feature"
 
 ### Tests for User Story 4 (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T040 [P] [US4] Unit test: with `distinct = true` and `participants > 1`, one source signaling ready repeatedly counts once and does not fire (FR-007, SC-004), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T041 [US4] Unit test: with `distinct = false` and `participants = N`, one source signaling ready `N` times fires (FR-007), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T042 [US4] Unit test: the source of each ready event is the participant (FR-010), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T040 [P] [US4] Unit test: with `distinct = true` and `participants > 1`, one source signaling ready repeatedly counts once and does not fire (FR-007, SC-004), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T041 [US4] Unit test: with `distinct = false` and `participants = N`, one source signaling ready `N` times fires (FR-007), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T042 [US4] Unit test: the source of each ready event is the participant (FR-010), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
 
 ### Implementation for User Story 4
 
-- [ ] T043 [US4] In `Barrier.process(Event)`, when `distinct = true`, use `readySources` keyed on `event.getSource()` so a source counts once; when `distinct = false`, increment on every ready event (FR-007, FR-010) in `src/main/java/jpnco/simula/actors/Barrier.java`
+- [X] T043 [US4] In `Barrier.process(Event)`, when `distinct = true`, use `readySources` keyed on `event.getSource()` so a source counts once; when `distinct = false`, increment on every ready event (FR-007, FR-010) in `src/main/java/jpnco/simula/actors/Barrier.java`
 
 **Checkpoint**: All four user stories independently functional.
 
@@ -124,13 +124,13 @@ description: "Task list for the Add Barrier Actor feature"
 
 ### Tests (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T050 [P] Unit test: non-positive `participants` is rejected with a clear error (FR-009), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T051 Unit test: null or blank `readyTopic` / `completeTopic` is rejected with a clear error (FR-009), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
-- [ ] T052 Unit test: null `mode` or null `distinct` (if boxed) is rejected with a clear error (FR-008, FR-009), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T050 [P] Unit test: non-positive `participants` is rejected with a clear error (FR-009), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T051 Unit test: null or blank `readyTopic` / `completeTopic` is rejected with a clear error (FR-009), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
+- [X] T052 Unit test: null `mode` or null `distinct` (if boxed) is rejected with a clear error (FR-008, FR-009), in `src/test/java/jpnco/simula/actors/BarrierTest.java`
 
 ### Implementation
 
-- [ ] T053 Add validation in the `Barrier` constructor for `participants >= 1`, non-null/non-blank topics, and non-null mode, throwing clear exceptions (FR-008, FR-009) in `src/main/java/jpnco/simula/actors/Barrier.java`
+- [X] T053 Add validation in the `Barrier` constructor for `participants >= 1`, non-null/non-blank topics, and non-null mode, throwing clear exceptions (FR-008, FR-009) in `src/main/java/jpnco/simula/actors/Barrier.java`
 
 ---
 
@@ -138,10 +138,10 @@ description: "Task list for the Add Barrier Actor feature"
 
 **Purpose**: Finalization, documentation, and constitution compliance.
 
-- [ ] T060 [P] Verify the coverage gate: run `mvn -o verify` and confirm line and branch coverage each ≥ 97% (Constitution II, SC-006)
-- [ ] T061 [P] Run `mvn -o spotless:apply` to format the new files (Constitution V)
-- [ ] T062 Verify Javadoc on all new/changed methods cites the implemented FR/SC identifiers (Constitution VI)
-- [ ] T063 Verify `architecture.md` uses Mermaid-only structural diagrams and contains no historical information (Constitution VIII)
+- [X] T060 [P] Verify the coverage gate: run `mvn -o verify` and confirm line and branch coverage each ≥ 97% (Constitution II, SC-006)
+- [X] T061 [P] Run `mvn -o spotless:apply` to format the new files (Constitution V)
+- [X] T062 Verify Javadoc on all new/changed methods cites the implemented FR/SC identifiers (Constitution VI)
+- [X] T063 Verify `architecture.md` uses Mermaid-only structural diagrams and contains no historical information (Constitution VIII)
 
 ---
 
