@@ -188,6 +188,8 @@ sequenceDiagram
 
 Shared engine state (registered actors, child engines, and topic subscriptions) is guarded by a per-engine `ReentrantLock`. The id builder uses a static `ReentrantLock` to produce unique ids across threads. Event delivery is asynchronous through per-actor queues (standard, priority, or delay).
 
+> **`synchronized` is prohibited.** Because actors run on virtual threads by default, a `synchronized` block pins its virtual thread to its carrier thread for the duration of the lock hold, cancelling the scalability benefit of virtual threads and potentially starving every other actor sharing that carrier. All mutual exclusion, inside the framework and in user actors, MUST use `java.util.concurrent.locks.ReentrantLock` (or other `java.util.concurrent` synchronizers), which are virtual-thread-friendly.
+
 ```mermaid
 flowchart LR
     Engine[Engine] -->|ReentrantLock| State[Shared State]
@@ -200,7 +202,7 @@ flowchart LR
 ## Key Decisions
 
 - **Execution mode**: actors run on virtual threads by default; classic platform threads are selected explicitly via an `ExecutionMode` constructor parameter (FR-001..FR-004).
-- **Locking**: all `synchronized` monitors are replaced with explicit `ReentrantLock` for uniform, explicit concurrency semantics (FR-010..FR-012).
+- **Locking**: `synchronized` monitors are prohibited because they pin virtual threads to their carrier; explicit `ReentrantLock` is used for uniform, explicit, virtual-thread-friendly concurrency semantics (FR-010..FR-012).
 - **Unique ids**: a central `IdBuilder` assigns unique integer ids to engines, actors, and loggers.
 - **Lifecycle supervision**: a `STARTED_ACTOR_EVENT` is signaled by a component when it begins its behavior, symmetric to `STOPPED_ACTOR_EVENT`. The built-in actors (via standard delegation), the engine, and the time source emit it for themselves; a `SimulaSupervisor` subscribes to it and to the stop events and exposes a queryable started/stopped state (FR-001..FR-010). The engine also exposes its child engines as a non-modifiable, ordered list via `getChildren()` (FR-011) and its actors as a non-modifiable, ordered list via `getActors()` (FR-012). Actors from external projects that do not use standard delegation are not forced to emit it; the contract is documented (FR-007).
 

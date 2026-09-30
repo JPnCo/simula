@@ -1,6 +1,6 @@
 # simula
 
-A **discrete-event simulation framework** for Java 23 based on an actor model. It lets you describe a system as a set of autonomous actors (each running on its own thread) that communicate by subscribing to named topics and exchanging events, while a simulated clock advances time.
+A **discrete-event simulation framework** for Java 25 based on an actor model. It lets you describe a system as a set of autonomous actors (each running on its own thread) that communicate by subscribing to named topics and exchanging events, while a simulated clock advances time.
 
 This document is the **user manual** for the framework.
 
@@ -67,13 +67,13 @@ Actors communicate **only** through events: they post events to a target actor, 
 import jpnco.simula.Engine;
 import jpnco.simula.engine.EngineImpl;
 
-Engine engine = new EngineImpl("my-simulation");
+Engine engine = new EngineImpl("my-simulation", 2);
 engine.start();
 // ... your simulation ...
 engine.stop();
 ```
 
-The `new EngineImpl(String title)` constructor creates a **root engine** with the default execution mode (virtual threads). The simulation starts with `start()`, and stopping the root engine stops the whole simulation (cascade shutdown).
+The `new EngineImpl(String title, int timeFactor)` constructor creates a **root engine** with the default execution mode (virtual threads). The simulation starts with `start()`, and stopping the root engine stops the whole simulation (cascade shutdown).
 
 ## Writing an actor
 
@@ -275,7 +275,7 @@ See [Built-in actors → Logger](#logger). The root engine's logger captures the
 An engine can have **child engines**. The root engine has no parent. Stopping an engine stops all its children; stopping the root engine therefore stops the whole simulation.
 
 ```java
-Engine parent = new EngineImpl("parent");
+Engine parent = new EngineImpl("parent", 2);
 Engine child = new EngineImpl("child", parent); // parent.addChild is called
 parent.start();
 parent.stop(); // stops parent and child
@@ -298,15 +298,17 @@ Choose the mode at construction:
 import jpnco.simula.engine.ExecutionMode;
 
 // Virtual mode (default)
-Engine v = new EngineImpl("virtual");
+Engine v = new EngineImpl("virtual", 2);
 
 // Classic mode
-Engine p = new EngineImpl("classic", ExecutionMode.PLATFORM);
+Engine p = new EngineImpl("classic", 2, ExecutionMode.PLATFORM);
 ```
 
 A mode can also be resolved by name, case-insensitively: `ExecutionMode.fromName("platform")` → `PLATFORM`. A null or unknown name throws `IllegalArgumentException`.
 
 > Virtual mode requires Java 21+. On an older runtime, the framework raises a clear error rather than silently degrading.
+
+> **Never use `synchronized` with virtual threads.** A `synchronized` block pins its virtual thread to its carrier thread for the whole duration of the lock hold, cancelling the scalability benefit of virtual threads and potentially blocking every other actor sharing that carrier. Use `java.util.concurrent.locks.ReentrantLock` (or other `java.util.concurrent` synchronizers) to guard shared state in your actors.
 
 ## Best practices
 
@@ -315,6 +317,7 @@ A mode can also be resolved by name, case-insensitively: `ExecutionMode.fromName
 - **Register every actor** with `registerAndStart()`; the engine starts it on a thread suited to the execution mode.
 - **Subscribe actors to the topics** they must receive; only use `signal()` for topics the actor has subscribed to.
 - **Never assume a thread is exclusive**: actors run in parallel; the engine's shared state is guarded by reentrant locks.
+- **Never use `synchronized`** in your actors: with virtual threads it pins the carrier thread and destroys scalability; guard shared state with `java.util.concurrent.locks.ReentrantLock` instead.
 
 ## API reference
 
