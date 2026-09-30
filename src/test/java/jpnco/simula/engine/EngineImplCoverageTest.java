@@ -553,6 +553,67 @@ class EngineImplCoverageTest {
     assertTrue(queue.isEmpty(), "the stopped engine must have purged its event queue");
   }
 
+  /** Waits until the root engine has removed the given child engine from its children. */
+  private void awaitChildGone(final EngineImpl child) throws InterruptedException {
+    // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
+    // terminates only after that delay.
+    final long deadline = System.currentTimeMillis() + 15000;
+    while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+  }
+
+  /**
+   * A terminal engine reports stopped and drops the late events posted after its loop completed.
+   */
+  @Test
+  void stoppedEngineDropsLatePostAndReportsStopped() throws Exception {
+    final EngineImpl child = new EngineImpl("latePostChild", root);
+    final Field queueField = EngineImpl.class.getDeclaredField("events");
+    queueField.setAccessible(true);
+    final BlockingQueue<?> queue = (BlockingQueue<?>) queueField.get(child);
+    child.start();
+    waitForRun(200);
+    child.stop();
+    awaitChildGone(child);
+    assertFalse(root.getChildren().contains(child), "the child engine should have stopped");
+    assertTrue(child.isStopped(), "a terminal engine must report stopped");
+    child.post(EventImpl.createEvent(TOPIC, root));
+    assertTrue(queue.isEmpty(), "a terminal engine must drop late events and keep its queue empty");
+  }
+
+  /** An engine child that dies on a throwable in its loop still notifies its parent. */
+  @Test
+  void crashedChildEngineIsRemovedFromParent() throws InterruptedException {
+    final EngineImpl child = new EngineImpl("crashChild", root);
+    child.start();
+    waitForRun(200);
+    // Force a ClassCastException inside the child loop: the STOPPED_ENGINE parameter is not an
+    // engine.
+    child.post(EventImpl.createEvent(Engine.STOPPED_ENGINE_EVENT, child, "notAnEngine"));
+    awaitChildGone(child);
+    assertFalse(root.getChildren().contains(child), "the parent must remove the crashed child");
+    assertTrue(child.isStopped(), "an engine that died in its loop must report stopped");
+  }
+
+  /** Registering an actor on a terminal engine is refused, leaving no trace. */
+  @Test
+  void registerOnStoppedEngineThrows() throws InterruptedException {
+    final EngineImpl child = new EngineImpl("deadRegisterChild", root);
+    child.start();
+    waitForRun(200);
+    child.stop();
+    awaitChildGone(child);
+    assertFalse(root.getChildren().contains(child), "the child engine should have stopped");
+    final IdActor actor = new IdActor(child);
+    final IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, () -> child.registerAndStart(actor));
+    assertTrue(
+        exception.getMessage().contains("stopped"), "the refusal must mention the terminal state");
+    assertFalse(
+        child.getActors().contains(actor), "a refused actor must not appear registered (FR-003)");
+  }
+
   /**
    * An actor whose custom delegation never reports a stopped status: its delegate has no delegate
    * of its own, so the defaulted isStopped() stays false (FR-005).

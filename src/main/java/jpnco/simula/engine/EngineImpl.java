@@ -43,6 +43,13 @@ public final class EngineImpl implements Engine {
   private static final String ALREADY_REGISTERED_MSG =
       "Actor %s is already registered on this engine and cannot be registered twice\n";
 
+  /**
+   * Error/exception message template used when registering an actor on an engine whose main loop
+   * has completed; the engine is terminal and would never process the actor's events.
+   */
+  private static final String STOPPED_ENGINE_REGISTRATION_MSG =
+      "Engine %s is stopped and cannot host new actors\n";
+
   private final Map<Integer, Actor> actors = new ConcurrentHashMap<>();
   private final Set<Engine> children = new LinkedHashSet<>();
 
@@ -57,6 +64,13 @@ public final class EngineImpl implements Engine {
   private final LinkedBlockingQueue<Event> events = new LinkedBlockingQueue<>();
   private final Integer id;
   private final Engine parent;
+
+  /**
+   * Terminal state of this engine: set on every exit path of {@link #run()}, before the final
+   * purge, so that a terminal engine drops the events no one will ever process (FR-004).
+   */
+  private volatile boolean stopped;
+
   private final Map<String, Set<Actor>> subscribersBytopic = new ConcurrentHashMap<>();
   private final int TIME_FACTOR;
   private final int TIMEOUT;
@@ -314,15 +328,14 @@ public final class EngineImpl implements Engine {
   }
 
   /**
-   * An engine reports itself as never stopped through this accessor: an engine has no delegate and
-   * is never registered, so the registration guard does not apply to it; its lifecycle is signaled
-   * by {@code STOPPED_ENGINE_EVENT} instead (FR-004, FR-008).
+   * Returns whether this engine's main loop has completed, whatever the exit path. The engine has
+   * no delegate and reports its own terminal stopped state, set by {@link #run()} (FR-004).
    *
-   * @return always {@code false}
+   * @return {@code true} once {@link #run()} has completed, {@code false} while it runs
    */
   @Override
   public boolean isStopped() {
-    return false;
+    return stopped;
   }
 
   /**
@@ -398,12 +411,16 @@ public final class EngineImpl implements Engine {
   }
 
   /**
-   * Offers the event to this engine's queue, yielding until the event is accepted.
+   * Offers the event to this engine's queue, yielding until the event is accepted. A terminal
+   * engine silently drops the event: stopping is terminal and no one will ever process it (FR-004).
    *
    * @param event the event to post
    */
   @Override
   public void post(final Event event) {
+    if (stopped) {
+      return;
+    }
     while (!events.offer(event)) {
       // System.out.printf("%s No room in queue\n", getName());
       Thread.yield();
@@ -488,12 +505,17 @@ public final class EngineImpl implements Engine {
    * stopping is terminal (FR-001, FR-002, FR-005).
    *
    * @param actor the actor to register
-   * @throws IllegalArgumentException if the actor is currently registered or already stopped on
-   *     this engine (FR-001, FR-002, FR-008)
+   * @throws IllegalArgumentException if this engine is stopped, or if the actor is currently
+   *     registered or already stopped on this engine (FR-001, FR-002, FR-008)
    */
   private void register(final Actor actor) {
     lock.lock();
     try {
+      if (stopped) {
+        Logger.error(this, STOPPED_ENGINE_REGISTRATION_MSG, getName());
+        throw new IllegalArgumentException(
+            String.format(STOPPED_ENGINE_REGISTRATION_MSG, getName()).trim());
+      }
       if (actor.isStopped()) {
         Logger.error(this, STOPPED_ACTOR_REGISTRATION_MSG, actor.getName());
         throw new IllegalArgumentException(
@@ -532,8 +554,9 @@ public final class EngineImpl implements Engine {
 
   /**
    * Runs the main loop of this engine, processing its event queue until the engine is stopped (no
-   * actor and no child engine remains). When stopped, a child engine signals its parent. The
-   * finally block purges the pending events on every exit path: the engine is terminal.
+   * actor and no child engine remains). The finally block marks this engine terminally stopped,
+   * signals the parent on every exit path, crash included, and purges the pending events: the
+   * engine is terminal.
    */
   @Override
   public void run() {
@@ -582,11 +605,6 @@ public final class EngineImpl implements Engine {
           e.printStackTrace();
         }
       }
-      if (parent != null) {
-        // signals parent that this engine is stopped
-        final Event stopped = EventImpl.createEvent(Engine.STOPPED_ENGINE_EVENT, this, this);
-        parent.signal(stopped);
-      }
       Logger.trace(this, "is stopped\n");
     } catch (final Throwable exc) {
       // System.out.printf("%s is dead because of %s\n", getSimpleName(),
@@ -600,8 +618,13 @@ public final class EngineImpl implements Engine {
       exc.printStackTrace();
       Logger.trace(this, "is stopped\n");
     } finally {
-      // The engine is terminal, whatever the exit path: release the pending events no one will ever
-      // process.
+      // Single terminal point of every exit path, crash included: setting the flag first closes the
+      // door to post, then the parent is signaled that this engine is stopped, so it never waits
+      // forever on a dead child, and the pending events no one will ever process are released.
+      stopped = true;
+      if (parent != null) {
+        parent.signal(EventImpl.createEvent(Engine.STOPPED_ENGINE_EVENT, this, this));
+      }
       events.clear();
     }
   }
