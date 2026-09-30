@@ -111,9 +111,12 @@ public interface Actor extends Runnable, Comparable<Actor> {
    * Returns whether this actor has reached its terminal stopped state. Stopping is terminal: an
    * actor that completed its run loop can never run again, and its engine refuses to register it
    * again (FR-004). Actors using the standard delegation automatically report the state of their
-   * delegate. Custom delegations SHOULD override this method (directly or through their delegator)
-   * to return {@code true} once their run loop has terminated; when they do not, the engine still
-   * refuses to re-register the instance through its memory of stopped instances (FR-005).
+   * delegate. Custom delegations SHOULD override this method (directly or through their delegator).
+   * An override MUST return {@code true} only once the run loop of the actor has terminated, and
+   * MUST keep returning {@code true} afterwards (the state is terminal). When a custom delegation
+   * does not override, the engine still refuses to re-register the instance through its weak memory
+   * of the instances it unregistered after a stop, so the no-restart guarantee holds for every
+   * actor style (FR-005).
    *
    * @return {@code true} if this actor's run loop has completed its stop, {@code false} otherwise
    */

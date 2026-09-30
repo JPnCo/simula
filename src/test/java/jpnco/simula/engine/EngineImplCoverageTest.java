@@ -509,6 +509,105 @@ class EngineImplCoverageTest {
         root.getActors().contains(actor), "a refused actor must not appear registered (FR-003)");
   }
 
+  /**
+   * An actor whose custom delegation never reports a stopped status: its delegate has no delegate
+   * of its own, so the defaulted isStopped() stays false (FR-005).
+   */
+  private static final class CustomActor implements Actor {
+    private final Integer id = IdBuilder.nextId();
+    private final Engine engine;
+    private final Actor customDelegate =
+        new Actor() {
+          @Override
+          public Actor getDelegate() {
+            return null;
+          }
+
+          @Override
+          public Integer getId() {
+            return 0;
+          }
+
+          @Override
+          public void process(final Event event) {}
+
+          @Override
+          public void run() {}
+        };
+
+    CustomActor(final Engine engine) {
+      this.engine = engine;
+    }
+
+    @Override
+    public Actor getDelegate() {
+      return customDelegate;
+    }
+
+    @Override
+    public Engine getEngine() {
+      return engine;
+    }
+
+    @Override
+    public Integer getId() {
+      return id;
+    }
+
+    @Override
+    public void process(final Event event) {}
+  }
+
+  /**
+   * T030: a custom-delegated actor that never reports stopped is refused via the weak memory
+   * (FR-005, SC-001).
+   */
+  @Test
+  void stoppedCustomDelegatedActorIsRefused() {
+    final CustomActor actor = new CustomActor(root);
+    root.registerAndStart(actor);
+    assertFalse(actor.isStopped(), "the custom delegation never reports stopped");
+    root.unregister(actor);
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> root.registerAndStart(actor),
+        "the engine memory of stopped instances must refuse the re-registration (FR-005)");
+    assertFalse(root.getActors().contains(actor));
+  }
+
+  /**
+   * T031: stopping and releasing many short-lived actors keeps the engine healthy; a fresh
+   * registration still works (SC-003).
+   */
+  @Test
+  void longSimulationWithShortLivedActorsStaysHealthy() throws InterruptedException {
+    final int actorCount = 100;
+    root.start();
+    waitForRun(300);
+    final int baseline = root.getActors().size();
+    final List<Actor> actors = new ArrayList<>();
+    for (int i = 0; i < actorCount; i++) {
+      final IdActor actor = new IdActor(root);
+      actors.add(actor);
+      root.registerAndStart(actor);
+    }
+    assertEquals(baseline + actorCount, root.getActors().size());
+    for (final Actor actor : actors) {
+      actor.stopMe();
+    }
+    final long deadline = System.currentTimeMillis() + 15000;
+    while (root.getActors().size() > baseline && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertEquals(
+        baseline, root.getActors().size(), "all short-lived actors should have unregistered");
+    actors.clear();
+    final IdActor fresh = new IdActor(root);
+    assertDoesNotThrow(
+        () -> root.registerAndStart(fresh), "a fresh registration must still succeed (SC-003)");
+    assertTrue(root.getActors().contains(fresh));
+  }
+
   /** An actor that counts down a latch each time it processes the test topic (FR-002). */
   private static final class CountingActor implements Actor {
     private final Actor delegate;

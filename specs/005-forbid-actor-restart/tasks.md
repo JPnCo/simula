@@ -75,13 +75,13 @@ description: "Task list for the Forbid Actor Restart feature"
 
 ### Tests for User Story 2 (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T020 [US2] Unit tests: `isStopped()` is `false` on a fresh standard-delegated actor and while it is running, and becomes `true` after its run loop completes its stop (including the stop-before-START path and the crash path where `run()` exits through the catch) (FR-004, US2 acceptance scenarios 1-3), in `src/test/java/jpnco/simula/engine/ActorDelegateTest.java`
+- [X] T020 [US2] Unit tests: `isStopped()` is `false` on a fresh standard-delegated actor and while it is running, and becomes `true` after its run loop completes its stop (including the stop-before-START path and the crash path where `run()` exits through the catch) (FR-004, US2 acceptance scenarios 1-3), in `src/test/java/jpnco/simula/engine/ActorDelegateTest.java`
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] In `src/main/java/jpnco/simula/Actor.java`: add `default boolean isStopped() { return false; }` with Javadoc documenting the terminal-state semantics and the contract that custom delegations SHOULD override it (FR-004, FR-005; Constitution VI)
-- [ ] T022 [US2] In `src/main/java/jpnco/simula/engine/ActorDelegate.java`: add `private volatile boolean stopped;` set to `true` exactly once in a new `finally` block of `run()` (after all stop/crash paths have signaled `STOPPED_ACTOR_EVENT`, per R2), and override `isStopped()`; Javadoc cites FR-004
-- [ ] T023 [US2] In `src/main/java/jpnco/simula/engine/EngineImpl.java`: in the `register(Actor)` guard, check `actor.isStopped()` first (REF-1) before the currently-registered and weak-memory checks, same log + exception behavior; Javadoc updated (FR-001, FR-004)
+- [X] T021 [US2] In `src/main/java/jpnco/simula/Actor.java`: add `default boolean isStopped() { return false; }` with Javadoc documenting the terminal-state semantics and the contract that custom delegations SHOULD override it (FR-004, FR-005; Constitution VI)
+- [X] T022 [US2] In `src/main/java/jpnco/simula/engine/ActorDelegate.java`: add `private volatile boolean stopped;` set to `true` exactly once in a new `finally` block of `run()` (after all stop/crash paths have signaled `STOPPED_ACTOR_EVENT`, per R2), and override `isStopped()`; Javadoc cites FR-004
+- [X] T023 [US2] In `src/main/java/jpnco/simula/engine/EngineImpl.java`: in the `register(Actor)` guard, check `actor.isStopped()` first (REF-1) before the currently-registered and weak-memory checks, same log + exception behavior; Javadoc updated (FR-001, FR-004)
 
 **Checkpoint**: US1 AND US2 work independently; standard actors self-report the terminal state.
 
@@ -95,12 +95,12 @@ description: "Task list for the Forbid Actor Restart feature"
 
 ### Tests for User Story 3 (write FIRST, ensure they FAIL before implementation)
 
-- [ ] T030 [P] [US3] Unit test: an actor with a custom delegate that does NOT override `isStopped()`, once stopped and unregistered, is refused on re-registration via the engine's weak-instance memory with the same exception and error log (FR-005, SC-001), in `src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java`
-- [ ] T031 [US3] Unit test: create, start, and stop a batch of short-lived actors, drop all references, and continue the simulation — the engine stays healthy, no error is logged, and a subsequent fresh registration still succeeds (SC-003 operational check of BOUNDED rule), in `src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java` (same file as T030: sequential)
+- [X] T030 [P] [US3] Unit test: an actor with a custom delegate that does NOT override `isStopped()`, once stopped and unregistered, is refused on re-registration via the engine's weak-instance memory with the same exception and error log (FR-005, SC-001), in `src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java`
+- [X] T031 [US3] Unit test: create, start, and stop a batch of short-lived actors, drop all references, and continue the simulation — the engine stays healthy, no error is logged, and a subsequent fresh registration still succeeds (SC-003 operational check of BOUNDED rule), in `src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java` (same file as T030: sequential)
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] In `src/main/java/jpnco/simula/Actor.java`: complete the `isStopped()` Javadoc with the custom-delegation contract wording from `specs/005-forbid-actor-restart/contracts/registration-guard.md` (what a custom delegation must guarantee if it overrides: `true` only after its run loop has terminated; the engine backstop covers non-overriders) (FR-005; Constitution VI)
+- [X] T032 [US3] In `src/main/java/jpnco/simula/Actor.java`: complete the `isStopped()` Javadoc with the custom-delegation contract wording from `specs/005-forbid-actor-restart/contracts/registration-guard.md` (what a custom delegation must guarantee if it overrides: `true` only after its run loop has terminated; the engine backstop covers non-overriders) (FR-005; Constitution VI)
 
 **Checkpoint**: All three user stories independently functional; refusal covers every actor style.
 
