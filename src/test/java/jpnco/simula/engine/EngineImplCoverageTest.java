@@ -10,8 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import jpnco.simula.Actor;
@@ -507,6 +509,48 @@ class EngineImplCoverageTest {
     assertEquals(1, processed.getCount(), "a refused actor must not process any event (FR-003)");
     assertFalse(
         root.getActors().contains(actor), "a refused actor must not appear registered (FR-003)");
+  }
+
+  /**
+   * A stopped child engine signals its parent and is removed from its children (regression of the
+   * hash-on-mutable-id bug: the child id must be assigned before the parent inserts it in the
+   * hash-based children set).
+   */
+  @Test
+  void stoppedChildEngineIsRemovedFromParent() throws InterruptedException {
+    final EngineImpl child = new EngineImpl("childRemovalChild", root);
+    child.start();
+    waitForRun(200);
+    assertTrue(
+        root.getChildren().contains(child), "the child should be registered before stopping");
+    child.stop();
+    // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
+    // terminates only after that delay.
+    final long deadline = System.currentTimeMillis() + 10000;
+    while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertFalse(root.getChildren().contains(child), "the parent must remove the stopped child");
+  }
+
+  /** The engine purges its event queue when its main loop completes. */
+  @Test
+  void stoppedEnginePurgesItsEventQueue() throws Exception {
+    final EngineImpl child = new EngineImpl("queuePurgeChild", root);
+    final Field queueField = EngineImpl.class.getDeclaredField("events");
+    queueField.setAccessible(true);
+    final BlockingQueue<?> queue = (BlockingQueue<?>) queueField.get(child);
+    child.start();
+    waitForRun(200);
+    child.stop();
+    // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
+    // terminates only after that delay.
+    final long deadline = System.currentTimeMillis() + 10000;
+    while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertFalse(root.getChildren().contains(child), "the child engine should have stopped");
+    assertTrue(queue.isEmpty(), "the stopped engine must have purged its event queue");
   }
 
   /**

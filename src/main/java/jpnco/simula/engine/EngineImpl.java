@@ -106,6 +106,10 @@ public final class EngineImpl implements Engine {
       final String title, final Engine parent, final int timeFactor, final ExecutionMode mode) {
     this.parent = parent;
     this.executionMode = Objects.requireNonNull(mode);
+    // The id must be assigned before addChild: a child is inserted into the parent's hash-based
+    // children set, and a later change of its id-based hashCode would make the entry unreachable
+    // for remove and contains.
+    id = IdBuilder.nextId();
     if (parent != null) {
       parent.addChild(this);
       TIME_FACTOR = parent.getTimeFactor();
@@ -114,7 +118,6 @@ public final class EngineImpl implements Engine {
     }
     TIMEOUT = 10 * TIME_FACTOR;
     name = title;
-    id = IdBuilder.nextId();
     start(this);
     logger = new Logger(this);
     registerAndStart(logger);
@@ -529,7 +532,8 @@ public final class EngineImpl implements Engine {
 
   /**
    * Runs the main loop of this engine, processing its event queue until the engine is stopped (no
-   * actor and no child engine remains). When stopped, a child engine signals its parent.
+   * actor and no child engine remains). When stopped, a child engine signals its parent. The
+   * finally block purges the pending events on every exit path: the engine is terminal.
    */
   @Override
   public void run() {
@@ -595,6 +599,10 @@ public final class EngineImpl implements Engine {
           exc.getMessage());
       exc.printStackTrace();
       Logger.trace(this, "is stopped\n");
+    } finally {
+      // The engine is terminal, whatever the exit path: release the pending events no one will ever
+      // process.
+      events.clear();
     }
   }
 
