@@ -2,6 +2,7 @@ package jpnco.simula.engine;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -12,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
@@ -248,7 +250,8 @@ public final class EngineImpl implements Engine {
 
 	/**
 	 * Returns the child engines of this engine as a non-modifiable list, in the
-	 * order in which they were added (FR-011), guarded by the engine lock (FR-012).
+	 * order in which they were added (FR-011), guarded by the engine lock
+	 * (002-FR-012).
 	 *
 	 * @return a non-modifiable, ordered list of the child engines
 	 */
@@ -260,6 +263,19 @@ public final class EngineImpl implements Engine {
 		} finally {
 			lock.unlock();
 		}
+	}
+
+	/**
+	 * Returns the actors of this engine as a non-modifiable list, ordered by id
+	 * (FR-012).
+	 *
+	 * @return a non-modifiable, ordered list of the actors of this engine
+	 */
+	@Override
+	public List<Actor> getActors() {
+		return actors.values().stream()
+				.sorted(Comparator.comparingInt(Actor::getId))
+				.collect(Collectors.toUnmodifiableList());
 	}
 
 	/**

@@ -203,3 +203,15 @@ description: "Task list for the Add Supervision Actor feature"
 ### Polish
 
 - [X] T056 Verify the coverage gate with `mvn -o verify` and confirm the Javadoc on the new method cites FR-011 (Constitution II, VI)
+
+### Tests (write FIRST, ensure they FAIL before implementation)
+
+- [X] T057 [P] Unit tests: `getActors()` returns the registered actors (including the engine's pre-existing logger and time source), returns a non-modifiable list, and returns a snapshot (FR-012, SC-008), in `src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java`
+
+### Implementation
+
+- [X] T058 Implement `getActors()` on the `Engine` interface and in `EngineImpl`, returning a non-modifiable, ordered `List<Actor>` snapshot of the registered actors ordered by id (FR-012), and disambiguate the `getChildren()` lock citation to `002-FR-012` in `src/main/java/jpnco/simula/Engine.java` and `src/main/java/jpnco/simula/engine/EngineImpl.java`
+
+### Polish
+
+- [X] T059 Verify the coverage gate with `mvn -o clean verify` and confirm the Javadoc on `getActors()` cites FR-012 (Constitution II, VI)

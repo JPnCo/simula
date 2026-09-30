@@ -55,6 +55,30 @@ class EngineImplCoverageTest {
     public void process(final Event event) {}
   }
 
+  /** A minimal actor with a unique id from {@link IdBuilder} (FR-012). */
+  private static final class IdActor implements Actor {
+    private final Actor delegate;
+    private final Integer id;
+
+    IdActor(final Engine engine) {
+      delegate = ActorDelegate.createDelegate(engine, this);
+      id = IdBuilder.nextId();
+    }
+
+    @Override
+    public Actor getDelegate() {
+      return delegate;
+    }
+
+    @Override
+    public Integer getId() {
+      return id;
+    }
+
+    @Override
+    public void process(final Event event) {}
+  }
+
   private EngineImpl root;
 
   @BeforeEach
@@ -167,6 +191,43 @@ class EngineImplCoverageTest {
     assertTrue(before.isEmpty());
     assertFalse(root.getChildren().isEmpty());
     child.stop();
+  }
+
+  @Test
+  void getActorsReturnsRegisteredActors() {
+    final List<Actor> baseline = root.getActors();
+    final IdActor actor1 = new IdActor(root);
+    final IdActor actor2 = new IdActor(root);
+    root.registerAndStart(actor1);
+    root.registerAndStart(actor2);
+    final List<Actor> actors = root.getActors();
+    assertEquals(baseline.size() + 2, actors.size());
+    assertTrue(actors.contains(actor1));
+    assertTrue(actors.contains(actor2));
+    root.unregister(actor1);
+    root.unregister(actor2);
+  }
+
+  @Test
+  void getActorsReturnsNonModifiableList() {
+    final IdActor actor = new IdActor(root);
+    root.registerAndStart(actor);
+    final List<Actor> actors = root.getActors();
+    assertThrows(UnsupportedOperationException.class, () -> actors.add(null));
+    assertThrows(UnsupportedOperationException.class, () -> actors.remove(0));
+    assertThrows(UnsupportedOperationException.class, () -> actors.clear());
+    root.unregister(actor);
+  }
+
+  @Test
+  void getActorsReturnsSnapshot() {
+    final List<Actor> before = root.getActors();
+    final IdActor actor = new IdActor(root);
+    root.registerAndStart(actor);
+    final List<Actor> after = root.getActors();
+    assertFalse(before.contains(actor));
+    assertTrue(after.contains(actor));
+    root.unregister(actor);
   }
 
   @Test

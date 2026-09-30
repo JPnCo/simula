@@ -15,6 +15,7 @@ classDiagram
     class Engine {
         <<interface>>
         +addChild(Engine)
+        +getActors() List
         +getChildren() List
         +getLogger()
         +getTime()
@@ -201,7 +202,7 @@ flowchart LR
 - **Execution mode**: actors run on virtual threads by default; classic platform threads are selected explicitly via an `ExecutionMode` constructor parameter (FR-001..FR-004).
 - **Locking**: all `synchronized` monitors are replaced with explicit `ReentrantLock` for uniform, explicit concurrency semantics (FR-010..FR-012).
 - **Unique ids**: a central `IdBuilder` assigns unique integer ids to engines, actors, and loggers.
-- **Lifecycle supervision**: a `STARTED_ACTOR_EVENT` is signaled by a component when it begins its behavior, symmetric to `STOPPED_ACTOR_EVENT`. The built-in actors (via standard delegation), the engine, and the time source emit it for themselves; a `SimulaSupervisor` subscribes to it and to the stop events and exposes a queryable started/stopped state (FR-001..FR-010). The engine also exposes its child engines as a non-modifiable, ordered list via `getChildren()` (FR-011). Actors from external projects that do not use standard delegation are not forced to emit it; the contract is documented (FR-007).
+- **Lifecycle supervision**: a `STARTED_ACTOR_EVENT` is signaled by a component when it begins its behavior, symmetric to `STOPPED_ACTOR_EVENT`. The built-in actors (via standard delegation), the engine, and the time source emit it for themselves; a `SimulaSupervisor` subscribes to it and to the stop events and exposes a queryable started/stopped state (FR-001..FR-010). The engine also exposes its child engines as a non-modifiable, ordered list via `getChildren()` (FR-011) and its actors as a non-modifiable, ordered list via `getActors()` (FR-012). Actors from external projects that do not use standard delegation are not forced to emit it; the contract is documented (FR-007).
 
 ## Requirements Traceability
 
@@ -211,3 +212,4 @@ flowchart LR
 - Concurrency/locking: FR-010, FR-011, FR-012
 - SimulaSupervisor/lifecycle event: FR-001..FR-010
 - Expose engine children (`getChildren()`): FR-011
+- Expose engine actors (`getActors()`): FR-012

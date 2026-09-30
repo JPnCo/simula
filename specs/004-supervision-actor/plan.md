@@ -34,7 +34,7 @@ Primary requirements: FR-001..FR-010; success criteria SC-001..SC-006.
 - No functional regression; identical observable behavior for existing actors.
 - Constitution compliance (see Constitution Check).
 
-**Scale/Scope**: One new actor (`SimulaSupervisor`), one new event constant (`STARTED_ACTOR_EVENT` on `Engine`), emission additions in three existing components (`ActorDelegate`, `TimeSource`, `EngineImpl`), a `getChildren()` accessor on `Engine`/`EngineImpl` exposing the child engines as a non-modifiable ordered list (FR-011), documentation updates, plus test classes.
+**Scale/Scope**: One new actor (`SimulaSupervisor`), one new event constant (`STARTED_ACTOR_EVENT` on `Engine`), emission additions in three existing components (`ActorDelegate`, `TimeSource`, `EngineImpl`), two accessors on `Engine`/`EngineImpl` exposing the child engines (`getChildren()`, FR-011) and the actors (`getActors()`, FR-012) as non-modifiable ordered lists, documentation updates, plus test classes.
 
 ## Constitution Check
 
@@ -103,7 +103,8 @@ architecture.md                        # UPDATE - mention SimulaSupervisor + STA
 6. **External-actor contract**: external actors that do not use standard delegation are not forced to emit the notification; the contract (how and when) is documented in the `Actor`/`Engine` Javadoc and in `architecture.md` (FR-007).
 7. **Queryable state**: the supervision actor keeps a map of observed components to their lifecycle status (`STARTED`/`STOPPED`), updated in the sequence notifications are received; a stop without a prior start is recorded as `STOPPED` without error (FR-006, FR-009, FR-010).
 8. **Non-intrusive**: the supervision actor observes by subscription only and never posts to, stops, or modifies observed components (FR-008).
-9. **Expose engine children**: `Engine` exposes `getChildren()` returning a non-modifiable, ordered `List<Engine>` snapshot of the child engines; `EngineImpl.children` becomes a `LinkedHashSet` to preserve insertion order, guarded by the engine lock (FR-011, FR-012).
+9. **Expose engine children**: `Engine` exposes `getChildren()` returning a non-modifiable, ordered `List<Engine>` snapshot of the child engines; `EngineImpl.children` becomes a `LinkedHashSet` to preserve insertion order, guarded by the engine lock (FR-011, 002-FR-012).
+10. **Expose engine actors**: `Engine` exposes `getActors()` returning a non-modifiable, ordered `List<Actor>` snapshot of the registered actors, ordered by id (FR-012).
 
 ## Complexity Tracking
 

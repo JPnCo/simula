@@ -76,6 +76,14 @@ public interface Engine extends Runnable, Actor {
 	List<Engine> getChildren();
 
 	/**
+	 * Returns the actors of this engine as a non-modifiable, ordered collection
+	 * (FR-012).
+	 *
+	 * @return the actors of this engine
+	 */
+	List<Actor> getActors();
+
+	/**
 	 * Returns current time
 	 *
 	 * @return current time

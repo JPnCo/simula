@@ -106,6 +106,7 @@ As a developer of an actor in an external project that does not use the framewor
 - **FR-009**: The system MUST keep the supervision state consistent with the sequence of lifecycle notifications received.
 - **FR-010**: The system MUST handle stop notifications for components that were not observed starting, without error.
 - **FR-011**: The system MUST expose the child engines of an engine as a non-modifiable, ordered collection.
+- **FR-012**: The system MUST expose the actors of an engine as a non-modifiable, ordered collection.
 
 ### Key Entities
 
@@ -125,6 +126,7 @@ As a developer of an actor in an external project that does not use the framewor
 - **SC-005**: The presence of the supervision actor does not change the observable outcomes of the observed simulation.
 - **SC-006**: The delivered code achieves at least 97% line coverage and at least 97% branch coverage, measured independently.
 - **SC-007**: The exposed child-engine collection is non-modifiable in 100% of cases and reflects the added children in the order they were added.
+- **SC-008**: The exposed actor collection is non-modifiable in 100% of cases and reflects the registered actors.
 
 ## Assumptions
 
