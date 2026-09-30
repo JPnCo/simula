@@ -137,6 +137,8 @@ An actor can override two default methods:
 
 An actor can stop itself by calling `stopMe()`.
 
+Stopping is **terminal**: once an actor's run loop has completed, the engine unregisters it and it can never run again. Re-registering the same instance (with `register`/`registerAndStart`) is refused with an `IllegalArgumentException` and an engine error log; the engine state is left untouched. To run the same behavior again, create a **new actor instance**. An actor reports its terminal state through `isStopped()` (`false` before the run, `true` once the run loop has completed, whatever the exit path).
+
 ## Events
 
 ### Signaling an event
@@ -318,12 +320,13 @@ A mode can also be resolved by name, case-insensitively: `ExecutionMode.fromName
 - **Subscribe actors to the topics** they must receive; only use `signal()` for topics the actor has subscribed to.
 - **Never assume a thread is exclusive**: actors run in parallel; the engine's shared state is guarded by reentrant locks.
 - **Never use `synchronized`** in your actors: with virtual threads it pins the carrier thread and destroys scalability; guard shared state with `java.util.concurrent.locks.ReentrantLock` instead.
+- **Never re-register a stopped actor**: stopping is terminal; create a new instance to run the behavior again (a re-registration attempt raises `IllegalArgumentException`).
 
 ## API reference
 
 The public interfaces live in the `jpnco.simula` package:
 
-- `Actor` — `getId()`, `getEngine()`, `getDelegate()`, `getName()`, `getSimpleName()`, `process(Event)`, `post(Event)`, `subscribe(String)`, `stopMe()`, `purgeEvents()`, `run()`, `afterStart()`, `beforeStop()`, `compareTo(Actor)`.
+- `Actor` — `getId()`, `getEngine()`, `getDelegate()`, `getName()`, `getSimpleName()`, `isStopped()`, `process(Event)`, `post(Event)`, `subscribe(String)`, `stopMe()`, `purgeEvents()`, `run()`, `afterStart()`, `beforeStop()`, `compareTo(Actor)`.
 - `Engine extends Actor` — `start()`, `stop()`, `registerAndStart(Actor)`, `signal(Event)`, `signalToChildren(Event)`, `subscribe(Actor, String)`, `unsubscribe(Actor, String)`, `unregister(Actor)`, `addChild(Engine)`, `getParent()`, `getTime()`, `getTimeFactor()`, `getTimeSource()`, `getLogger()`.
 - `Event` — `getTopic()`, `getSource()`, `getTime()`, `getParameters()`, `getPriority()`, `isPrioritized()`, `isDelayed()`, `duplicate(Actor)`.
 

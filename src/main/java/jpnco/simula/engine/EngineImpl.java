@@ -761,7 +761,8 @@ public final class EngineImpl implements Engine {
 
   /**
    * Unregisters an actor, removing it from the registered actors and from all topic subscription
-   * sets, guarded by the engine lock (FR-012).
+   * sets, guarded by the engine lock (FR-012). A successfully removed instance is remembered with a
+   * weak reference so that a later re-registration attempt is refused (FR-005, FR-006).
    *
    * @param actor the actor to unregister
    * @return {@code true} if no actor remains registered

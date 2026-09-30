@@ -108,11 +108,11 @@ description: "Task list for the Forbid Actor Restart feature"
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T040 [P] Update `README.md`: "Stopping an actor" section (stop is terminal — create a new instance to run the behavior again), a Best practices bullet (never re-register a stopped instance), and the API reference (add `isStopped()` to the `Actor` method list)
-- [ ] T041 [P] Update `architecture.md`: document the registration guard (terminal stopped state, checks REF-1/REF-2/REF-3, weak-instance memory under the engine lock) in the lifecycle/concurrency sections as present-state only, Mermaid diagrams only, no history (Constitution VIII)
-- [ ] T042 Verify Javadoc on all new/changed methods cites the implemented FR/SC identifiers (Constitution VI)
-- [ ] T043 Verify the coverage gate: run `mvn -o clean verify` and confirm line and branch coverage each ≥ 97% for the framework bundle (Constitution II, SC-004)
-- [ ] T044 Run the `specs/005-forbid-actor-restart/quickstart.md` validation: full suite green, and the samples project (`../SIMULA_SAMPLES`, after `mvn -o install`) compiles unchanged (SC-004)
+- [X] T040 [P] Update `README.md`: "Stopping an actor" section (stop is terminal — create a new instance to run the behavior again), a Best practices bullet (never re-register a stopped instance), and the API reference (add `isStopped()` to the `Actor` method list)
+- [X] T041 [P] Update `architecture.md`: document the registration guard (terminal stopped state, checks REF-1/REF-2/REF-3, weak-instance memory under the engine lock) in the lifecycle/concurrency sections as present-state only, Mermaid diagrams only, no history (Constitution VIII)
+- [X] T042 Verify Javadoc on all new/changed methods cites the implemented FR/SC identifiers (Constitution VI)
+- [X] T043 Verify the coverage gate: run `mvn -o clean verify` and confirm line and branch coverage each ≥ 97% for the framework bundle (Constitution II, SC-004)
+- [X] T044 Run the `specs/005-forbid-actor-restart/quickstart.md` validation: full suite green, and the samples project (`../SIMULA_SAMPLES`, after `mvn -o install`) compiles unchanged (SC-004)
 
 ---
 
