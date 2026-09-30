@@ -173,6 +173,47 @@ class ActorDelegateTest {
     delegate.run();
   }
 
+  /**
+   * T020: the delegate reports its terminal stopped state after the run loop completes (FR-004).
+   */
+  @Test
+  void isStoppedFalseBeforeRunAndTrueAfterStopBeforeStart() {
+    assertFalse(delegate.isStopped(), "a fresh delegate must report not stopped");
+    final Event stopEvent = mock(Event.class);
+    when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+    when(stopEvent.getSource()).thenReturn(delegate);
+    delegate.post(stopEvent);
+    delegate.run();
+    assertTrue(delegate.isStopped(), "a delegate stopped before start must report stopped");
+  }
+
+  /** T020: the stopped flag is set after a normal start-then-stop completion (FR-004). */
+  @Test
+  void isStoppedTrueAfterRunToCompletion() {
+    final Event startEvent = mock(Event.class);
+    when(startEvent.getTopic()).thenReturn(Engine.START_EVENT);
+    when(startEvent.getSource()).thenReturn(delegate);
+    final Event stopEvent = mock(Event.class);
+    when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+    when(stopEvent.getSource()).thenReturn(delegate);
+    delegate.post(startEvent);
+    delegate.post(stopEvent);
+    delegate.run();
+    assertTrue(delegate.isStopped(), "a delegate that completed its run loop must report stopped");
+  }
+
+  /** T020: a run that exits through the crash path also reports the terminal state (FR-004). */
+  @Test
+  void isStoppedTrueAfterRunExitsThroughThrowable() {
+    doThrow(new RuntimeException("boom")).when(delegator).afterStart();
+    final Event startEvent = mock(Event.class);
+    when(startEvent.getTopic()).thenReturn(Engine.START_EVENT);
+    when(startEvent.getSource()).thenReturn(delegate);
+    delegate.post(startEvent);
+    delegate.run();
+    assertTrue(delegate.isStopped(), "a delegate stopped by a throwable must report stopped");
+  }
+
   @Test
   void runIgnoresStopMeFromOtherSourceThenStart() {
     final Event stopMeOther = mock(Event.class);

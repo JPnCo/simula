@@ -63,6 +63,12 @@ public final class ActorDelegate implements Actor {
   private final Engine engine;
 
   /**
+   * Terminal flag set once when {@link #run()} completes, whatever the exit path (normal stop,
+   * stop-before-start, or crash). Stopping is terminal, so it is never reset (FR-004).
+   */
+  private volatile boolean stopped;
+
+  /**
    * Builds a delegate for the given actor on the given engine, using the supplied event queue.
    *
    * @param engine the engine that runs the delegating actor
@@ -143,6 +149,17 @@ public final class ActorDelegate implements Actor {
   }
 
   /**
+   * Returns whether this delegate's run loop has completed, whatever the exit path. This is the
+   * terminal state reported to the delegating actor through {@link Actor#isStopped()} (FR-004).
+   *
+   * @return {@code true} once {@link #run()} has completed, {@code false} while it runs
+   */
+  @Override
+  public boolean isStopped() {
+    return stopped;
+  }
+
+  /**
    * Returns a hash code for this delegate based on its delegating actor and engine, consistent with
    * {@link #equals(Object)}.
    *
@@ -193,7 +210,8 @@ public final class ActorDelegate implements Actor {
   /**
    * Runs the standard actor loop: subscribes the delegating actor to the START, STOP and STOP_ME
    * events, then processes events until a stop is requested. A {@link Logger} actor starts its main
-   * loop as soon as possible.
+   * loop as soon as possible. The finally block marks this delegate as terminally stopped on every
+   * exit path, after the stop or crash paths have signaled {@code STOPPED_ACTOR_EVENT} (FR-004).
    */
   @Override
   public void run() {
@@ -221,6 +239,10 @@ public final class ActorDelegate implements Actor {
           exc.getMessage());
       engine.signal(EventImpl.createEvent(Engine.STOPPED_ACTOR_EVENT, delegator));
       Logger.debug(this, "is stopped\n");
+    } finally {
+      // Single terminal point: after every stop/crash path has signaled STOPPED_ACTOR_EVENT, so the
+      // flag is never observable as true while the actor is still processing (FR-004).
+      stopped = true;
     }
   }
 

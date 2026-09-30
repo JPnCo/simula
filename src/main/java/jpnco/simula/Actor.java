@@ -108,6 +108,21 @@ public interface Actor extends Runnable, Comparable<Actor> {
   }
 
   /**
+   * Returns whether this actor has reached its terminal stopped state. Stopping is terminal: an
+   * actor that completed its run loop can never run again, and its engine refuses to register it
+   * again (FR-004). Actors using the standard delegation automatically report the state of their
+   * delegate. Custom delegations SHOULD override this method (directly or through their delegator)
+   * to return {@code true} once their run loop has terminated; when they do not, the engine still
+   * refuses to re-register the instance through its memory of stopped instances (FR-005).
+   *
+   * @return {@code true} if this actor's run loop has completed its stop, {@code false} otherwise
+   */
+  default boolean isStopped() {
+    final Actor delegate = getDelegate();
+    return delegate != null && delegate.isStopped();
+  }
+
+  /**
    * Post an event in the queue of this actor
    *
    * @param event the event to post

@@ -29,15 +29,16 @@ import jpnco.simula.actors.TimeSource;
 public final class EngineImpl implements Engine {
 
   /**
-   * Error/exception message template used when registering an actor instance that already stopped on
-   * this engine; stopped is terminal, so a new instance is required (FR-001, FR-002).
+   * Error/exception message template used when registering an actor instance that already stopped
+   * on this engine; stopped is terminal, so a new instance is required (FR-001, FR-002).
    */
   private static final String STOPPED_ACTOR_REGISTRATION_MSG =
       "Actor %s is stopped and cannot be registered again; create a new instance\n";
 
   /**
-   * Error/exception message template used when registering an actor whose id is currently registered
-   * on this engine; the ongoing execution of the running actor is left undisturbed (FR-008).
+   * Error/exception message template used when registering an actor whose id is currently
+   * registered on this engine; the ongoing execution of the running actor is left undisturbed
+   * (FR-008).
    */
   private static final String ALREADY_REGISTERED_MSG =
       "Actor %s is already registered on this engine and cannot be registered twice\n";
@@ -48,10 +49,11 @@ public final class EngineImpl implements Engine {
   /**
    * Identity memory of the actor instances this engine unregistered after a stop. It uses weak
    * references so that an unreferenced stopped instance can be reclaimed and the memory never grows
-   * with the cumulative count of stopped actors (FR-005, FR-006). Accessed under the engine lock only,
-   * as a backstop for actors whose custom delegation does not report its stopped status.
+   * with the cumulative count of stopped actors (FR-005, FR-006). Accessed under the engine lock
+   * only, as a backstop for actors whose custom delegation does not report its stopped status.
    */
   private final Set<Actor> stoppedInstances = Collections.newSetFromMap(new WeakHashMap<>());
+
   private final LinkedBlockingQueue<Event> events = new LinkedBlockingQueue<>();
   private final Integer id;
   private final Engine parent;
@@ -309,6 +311,18 @@ public final class EngineImpl implements Engine {
   }
 
   /**
+   * An engine reports itself as never stopped through this accessor: an engine has no delegate and
+   * is never registered, so the registration guard does not apply to it; its lifecycle is signaled
+   * by {@code STOPPED_ENGINE_EVENT} instead (FR-004, FR-008).
+   *
+   * @return always {@code false}
+   */
+  @Override
+  public boolean isStopped() {
+    return false;
+  }
+
+  /**
    * Returns a copy of the set of subscribers of a topic. So it is possible to subscribe and
    * unsubscribe during the copy is iterated
    *
@@ -466,20 +480,26 @@ public final class EngineImpl implements Engine {
   /**
    * Registers an actor in this engine, guarded by the engine lock (FR-012). Registration is refused
    * before any mutation so that a refusal leaves no trace (FR-003): the actor is neither added nor
-   * subscribed, and no execution starts. A currently-registered actor is refused so that its ongoing
-   * execution stays undisturbed (FR-008), and a stopped instance is refused because stopping is
-   * terminal (FR-001, FR-002, FR-005).
+   * subscribed, and no execution starts. A currently-registered actor is refused so that its
+   * ongoing execution stays undisturbed (FR-008), and a stopped instance is refused because
+   * stopping is terminal (FR-001, FR-002, FR-005).
    *
    * @param actor the actor to register
-   * @throws IllegalArgumentException if the actor is currently registered or already stopped on this
-   *                                  engine (FR-001, FR-002, FR-008)
+   * @throws IllegalArgumentException if the actor is currently registered or already stopped on
+   *     this engine (FR-001, FR-002, FR-008)
    */
   private void register(final Actor actor) {
     lock.lock();
     try {
+      if (actor.isStopped()) {
+        Logger.error(this, STOPPED_ACTOR_REGISTRATION_MSG, actor.getName());
+        throw new IllegalArgumentException(
+            String.format(STOPPED_ACTOR_REGISTRATION_MSG, actor.getName()).trim());
+      }
       if (actors.containsKey(actor.getId())) {
         Logger.error(this, ALREADY_REGISTERED_MSG, actor.getName());
-        throw new IllegalArgumentException(String.format(ALREADY_REGISTERED_MSG, actor.getName()).trim());
+        throw new IllegalArgumentException(
+            String.format(ALREADY_REGISTERED_MSG, actor.getName()).trim());
       }
       if (stoppedInstances.contains(actor)) {
         Logger.error(this, STOPPED_ACTOR_REGISTRATION_MSG, actor.getName());

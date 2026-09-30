@@ -172,6 +172,14 @@ public final class TimeSource implements Actor {
 	private final Clock clock;
 
 	/**
+	 * Terminal flag set once when {@link #run()} completes, whatever the exit path.
+	 * Stopping is terminal, so it is never reset (FR-004). This custom-delegated
+	 * actor reports its own stopped status instead of relying on a delegate
+	 * (FR-005).
+	 */
+	private volatile boolean stopped;
+
+	/**
 	 * Builds a time source for the given engine and time factor, subscribing to
 	 * the START and STOP events and starting its internal clock.
 	 *
@@ -346,8 +354,21 @@ public final class TimeSource implements Actor {
 	}
 
 	/**
+	 * Returns whether this time source's run loop has completed, whatever the exit
+	 * path. As a custom-delegated actor, the time source reports its own terminal
+	 * stopped state (FR-004, FR-005).
+	 *
+	 * @return {@code true} once {@link #run()} has completed, {@code false} while it runs
+	 */
+	@Override
+	public boolean isStopped() {
+		return stopped;
+	}
+
+	/**
 	 * This method contains the main loop of the actor. It is called by the engine
-	 * constructor.
+	 * constructor. The finally block marks this time source as terminally stopped
+	 * on every exit path (FR-004).
 	 */
 	@Override
 	public void run() {
@@ -362,6 +383,8 @@ public final class TimeSource implements Actor {
 			getEngine().unregister(this);
 			Logger.error(this, "is dead because of %s\n", exc.getClass().getCanonicalName());
 			throw exc;
+		} finally {
+			stopped = true;
 		}
 		Logger.debug(this, "is stopped\n");
 	}
