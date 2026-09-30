@@ -124,10 +124,14 @@
 				<configuration>
 					<java>
 						<includes>
+							<include>src/main/java/jpnco/simula/Actor.java</include>
+							<include>src/main/java/jpnco/simula/engine/ActorDelegate.java</include>
+							<include>src/main/java/jpnco/simula/engine/EngineImpl.java</include>
 							<include>src/main/java/jpnco/simula/engine/ExecutionMode.java</include>
 							<include>src/main/java/jpnco/simula/actors/Barrier.java</include>
 							<include>src/main/java/jpnco/simula/actors/BarrierMode.java</include>
 							<include>src/main/java/jpnco/simula/actors/SimulaSupervisor.java</include>
+							<include>src/test/java/jpnco/simula/engine/ActorDelegateTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/ExecutionModeTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/ConcurrencyTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/EngineImplCoverageTest.java</include>
