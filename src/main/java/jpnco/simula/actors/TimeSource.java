@@ -284,12 +284,16 @@ public final class TimeSource implements Actor {
 
 	/**
 	 * Offers the event to this time source's queue, blocking by yielding until
-	 * the event is accepted.
+	 * the event is accepted. A terminally stopped time source silently drops the
+	 * event: stopping is terminal and no one will ever process it (FR-004).
 	 *
 	 * @param event the event to post
 	 */
 	@Override
 	public void post(final Event event) {
+		if (stopped) {
+			return;
+		}
 		while (!events.offer(event)) {
 			// System.out.printf("%s No room in queue\n", getName());
 			Thread.yield();
@@ -384,9 +388,10 @@ public final class TimeSource implements Actor {
 			Logger.error(this, "is dead because of %s\n", exc.getClass().getCanonicalName());
 			throw exc;
 		} finally {
-			// Stopping is terminal: release the pending events no one will process.
-			events.clear();
+			// Setting the flag first closes the door to post, then the purge releases
+			// the events already queued: stopping is terminal.
 			stopped = true;
+			events.clear();
 		}
 		Logger.debug(this, "is stopped\n");
 	}

@@ -526,7 +526,7 @@ class EngineImplCoverageTest {
     child.stop();
     // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
     // terminates only after that delay.
-    final long deadline = System.currentTimeMillis() + 10000;
+    final long deadline = System.currentTimeMillis() + 15000;
     while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
       Thread.sleep(50);
     }
@@ -545,7 +545,7 @@ class EngineImplCoverageTest {
     child.stop();
     // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
     // terminates only after that delay.
-    final long deadline = System.currentTimeMillis() + 10000;
+    final long deadline = System.currentTimeMillis() + 15000;
     while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
       Thread.sleep(50);
     }

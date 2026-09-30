@@ -466,6 +466,20 @@ class TimeSourceTest {
 	}
 
 	@Test
+	void testPostAfterRunCompletionIsDropped() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 200);
+		ts.post(selfEvent(ts, Engine.STOP_EVENT));
+		ts.run();
+		ts.post(mock(Event.class));
+		final Field field = TimeSource.class.getDeclaredField("events");
+		field.setAccessible(true);
+		assertTrue(((BlockingQueue<?>) field.get(ts)).isEmpty(),
+				"a stopped time source must drop late events and keep its queue empty");
+	}
+
+	@Test
 	void testPostRetriesWhenQueueOfferFails() throws Exception {
 		final Engine engine = mock(Engine.class);
 		when(engine.getTime()).thenReturn(0);

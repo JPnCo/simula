@@ -171,13 +171,18 @@ public final class ActorDelegate implements Actor {
   }
 
   /**
-   * Offers the event to this delegate's queue, yielding until the event is accepted.
+   * Offers the event to this delegate's queue, yielding until the event is accepted. A terminally
+   * stopped delegate silently drops the event: stopping is terminal and no one will ever process it
+   * (FR-004).
    *
    * @param event the event to post
    */
   @Override
   public void post(final Event event) {
     Objects.requireNonNull(event);
+    if (stopped) {
+      return;
+    }
     while (!events.offer(event)) {
       // System.out.printf("%s No room in queue\n", getName());
       Thread.yield();
@@ -242,10 +247,11 @@ public final class ActorDelegate implements Actor {
       Logger.debug(this, "is stopped\n");
     } finally {
       // Single terminal point: after every stop/crash path has signaled STOPPED_ACTOR_EVENT, so the
-      // flag is never observable as true while the actor is still processing (FR-004). Stopping is
-      // terminal, so the pending events no one will ever process are released with it.
-      events.clear();
+      // flag is never observable as true while the actor is still processing (FR-004). Setting the
+      // flag first closes the door to post, then the purge releases the events already queued:
+      // stopping is terminal.
       stopped = true;
+      events.clear();
     }
   }
 

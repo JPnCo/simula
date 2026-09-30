@@ -219,6 +219,21 @@ class ActorDelegateTest {
         "the queue must be purged when the run loop completes");
   }
 
+  /** A terminally stopped delegate drops the late events posted after its run loop completed. */
+  @Test
+  void postAfterRunCompletionIsDropped() {
+    final Event stopEvent = mock(Event.class);
+    when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+    when(stopEvent.getSource()).thenReturn(delegate);
+    delegate.post(stopEvent);
+    delegate.run();
+    final Event late = mock(Event.class);
+    delegate.post(late);
+    assertTrue(
+        ((ActorDelegate) delegate).getQueue().isEmpty(),
+        "a stopped delegate must drop late events and keep its queue empty");
+  }
+
   /** T020: a run that exits through the crash path also reports the terminal state (FR-004). */
   @Test
   void isStoppedTrueAfterRunExitsThroughThrowable() {
