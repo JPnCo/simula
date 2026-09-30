@@ -202,6 +202,23 @@ class ActorDelegateTest {
     assertTrue(delegate.isStopped(), "a delegate that completed its run loop must report stopped");
   }
 
+  /** The stopped actor's pending events are purged when its run loop completes. */
+  @Test
+  void runPurgesQueueOnCompletion() {
+    final Event stopEvent = mock(Event.class);
+    when(stopEvent.getTopic()).thenReturn(Engine.STOP_EVENT);
+    when(stopEvent.getSource()).thenReturn(delegate);
+    final Event generic = mock(Event.class);
+    when(generic.getTopic()).thenReturn("GENERIC");
+    when(generic.getSource()).thenReturn(delegator);
+    delegate.post(stopEvent);
+    delegate.post(generic);
+    delegate.run();
+    assertTrue(
+        ((ActorDelegate) delegate).getQueue().isEmpty(),
+        "the queue must be purged when the run loop completes");
+  }
+
   /** T020: a run that exits through the crash path also reports the terminal state (FR-004). */
   @Test
   void isStoppedTrueAfterRunExitsThroughThrowable() {

@@ -367,8 +367,8 @@ public final class TimeSource implements Actor {
 
 	/**
 	 * This method contains the main loop of the actor. It is called by the engine
-	 * constructor. The finally block marks this time source as terminally stopped
-	 * on every exit path (FR-004).
+	 * constructor. The finally block purges the pending events and marks this
+	 * time source as terminally stopped on every exit path (FR-004).
 	 */
 	@Override
 	public void run() {
@@ -384,6 +384,8 @@ public final class TimeSource implements Actor {
 			Logger.error(this, "is dead because of %s\n", exc.getClass().getCanonicalName());
 			throw exc;
 		} finally {
+			// Stopping is terminal: release the pending events no one will process.
+			events.clear();
 			stopped = true;
 		}
 		Logger.debug(this, "is stopped\n");

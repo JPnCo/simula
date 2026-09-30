@@ -210,8 +210,9 @@ public final class ActorDelegate implements Actor {
   /**
    * Runs the standard actor loop: subscribes the delegating actor to the START, STOP and STOP_ME
    * events, then processes events until a stop is requested. A {@link Logger} actor starts its main
-   * loop as soon as possible. The finally block marks this delegate as terminally stopped on every
-   * exit path, after the stop or crash paths have signaled {@code STOPPED_ACTOR_EVENT} (FR-004).
+   * loop as soon as possible. The finally block purges the pending events and marks this delegate
+   * as terminally stopped on every exit path, after the stop or crash paths have signaled {@code
+   * STOPPED_ACTOR_EVENT} (FR-004).
    */
   @Override
   public void run() {
@@ -241,7 +242,9 @@ public final class ActorDelegate implements Actor {
       Logger.debug(this, "is stopped\n");
     } finally {
       // Single terminal point: after every stop/crash path has signaled STOPPED_ACTOR_EVENT, so the
-      // flag is never observable as true while the actor is still processing (FR-004).
+      // flag is never observable as true while the actor is still processing (FR-004). Stopping is
+      // terminal, so the pending events no one will ever process are released with it.
+      events.clear();
       stopped = true;
     }
   }

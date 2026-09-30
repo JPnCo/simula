@@ -137,7 +137,7 @@ An actor can override two default methods:
 
 An actor can stop itself by calling `stopMe()`.
 
-Stopping is **terminal**: once an actor's run loop has completed, the engine unregisters it and it can never run again. Re-registering the same instance (with `register`/`registerAndStart`) is refused with an `IllegalArgumentException` and an engine error log; the engine state is left untouched. To run the same behavior again, create a **new actor instance**. An actor reports its terminal state through `isStopped()` (`false` before the run, `true` once the run loop has completed, whatever the exit path).
+Stopping is **terminal**: once an actor's run loop has completed, the engine unregisters it, its pending event queue is purged, and it can never run again. Re-registering the same instance (with `register`/`registerAndStart`) is refused with an `IllegalArgumentException` and an engine error log; the engine state is left untouched. To run the same behavior again, create a **new actor instance**. An actor reports its terminal state through `isStopped()` (`false` before the run, `true` once the run loop has completed, whatever the exit path).
 
 ## Events
 
