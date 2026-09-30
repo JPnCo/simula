@@ -106,10 +106,19 @@ public interface Engine extends Runnable, Actor {
 	TimeSource getTimeSource();
 
 	/**
-	 * Register and starts an actor
+	 * Register and starts an actor.
+	 * <p>
+	 * Registration is refused when the actor instance has already stopped on this engine
+	 * (stopping is terminal: create a new instance to run the behavior again) or when an
+	 * actor with the same id is currently registered (the running actor is left
+	 * undisturbed). A refusal is reported as an engine error log and leaves the engine
+	 * state unchanged: the actor is not registered, not subscribed, and no execution is
+	 * started.
 	 *
 	 * @param actor the actor to register and start;
 	 * @Return this actor
+	 * @throws IllegalArgumentException if the actor is already stopped on this engine or is
+	 *                                  currently registered (FR-001, FR-002, FR-003, FR-008)
 	 */
 	Actor registerAndStart(Actor actor);
 

@@ -409,6 +409,85 @@ class EngineImplCoverageTest {
     }
   }
 
+  // --- Feature 005: forbid actor restart (FR-001..FR-003, FR-007, FR-008) ---
+
+  /** Polls until the actor is no longer registered on the engine, then asserts its absence. */
+  private static void awaitAbsent(final Engine engine, final Actor actor) throws InterruptedException {
+    final long timeoutMillis = 5000;
+    final long deadline = System.currentTimeMillis() + timeoutMillis;
+    while (engine.getActors().contains(actor) && System.currentTimeMillis() < deadline) {
+      Thread.sleep(20);
+    }
+    assertFalse(engine.getActors().contains(actor), "actor should have been unregistered after stop");
+  }
+
+  /** T010: re-registering a stopped actor is refused and leaves the engine untouched (FR-001, FR-002, FR-003). */
+  @Test
+  void stoppedActorCannotBeRegisteredAgain() throws InterruptedException {
+    final IdActor actor = new IdActor(root);
+    root.registerAndStart(actor);
+    root.start();
+    // Give the delegate thread time to subscribe before stopping: signaling START/STOP_ME to a
+    // delegate that has not subscribed yet is inherently racy (framework behavior, out of scope 005).
+    waitForRun(300);
+    assertTrue(root.getActors().contains(actor), "actor should be registered after start");
+    actor.stopMe();
+    awaitAbsent(root, actor);
+    final List<Actor> snapshot = root.getActors();
+    assertThrows(IllegalArgumentException.class, () -> root.registerAndStart(actor),
+        "a stopped actor instance must be refused (SC-001)");
+    assertEquals(snapshot, root.getActors(), "engine actor set must be unchanged after the refusal (SC-002)");
+  }
+
+  /** T011: registering a currently-registered actor is refused and does not disturb it (FR-008, SC-005). */
+  @Test
+  void currentlyRegisteredActorCannotBeRegisteredTwice() throws InterruptedException {
+    final CountDownLatch processed = new CountDownLatch(2);
+    final CountingActor actor = new CountingActor(root, processed);
+    root.registerAndStart(actor);
+    root.start();
+    root.subscribe(actor, TOPIC);
+    root.signal(EventImpl.createEvent(TOPIC, root));
+    waitForRun(300);
+    assertEquals(1, processed.getCount(), "running actor should have processed the first event");
+    assertThrows(IllegalArgumentException.class, () -> root.registerAndStart(actor),
+        "a currently-registered actor must not be registered twice (FR-008)");
+    assertTrue(root.getActors().contains(actor), "the running actor must stay registered");
+    root.signal(EventImpl.createEvent(TOPIC, root));
+    assertTrue(processed.await(5, TimeUnit.SECONDS), "the running actor must stay undisturbed (SC-005)");
+  }
+
+  /** T012: a fresh instance is accepted even when a same-class actor previously stopped (FR-007). */
+  @Test
+  void freshInstanceAcceptedAfterOtherActorStopped() throws InterruptedException {
+    final IdActor first = new IdActor(root);
+    root.registerAndStart(first);
+    root.start();
+    waitForRun(300);
+    first.stopMe();
+    awaitAbsent(root, first);
+    final IdActor second = new IdActor(root);
+    assertDoesNotThrow(() -> root.registerAndStart(second), "a fresh instance must be accepted (FR-007)");
+    assertTrue(root.getActors().contains(second), "the fresh instance must be registered");
+  }
+
+  /** T013: a refused registration leaves no trace: no subscription, no execution (FR-003). */
+  @Test
+  void refusedRegistrationLeavesNoTrace() throws InterruptedException {
+    final CountDownLatch processed = new CountDownLatch(1);
+    final CountingActor actor = new CountingActor(root, processed);
+    root.registerAndStart(actor);
+    root.start();
+    waitForRun(300);
+    actor.stopMe();
+    awaitAbsent(root, actor);
+    assertThrows(IllegalArgumentException.class, () -> root.registerAndStart(actor));
+    root.signal(EventImpl.createEvent(TOPIC, root));
+    waitForRun(300);
+    assertEquals(1, processed.getCount(), "a refused actor must not process any event (FR-003)");
+    assertFalse(root.getActors().contains(actor), "a refused actor must not appear registered (FR-003)");
+  }
+
   /** An actor that counts down a latch each time it processes the test topic (FR-002). */
   private static final class CountingActor implements Actor {
     private final Actor delegate;

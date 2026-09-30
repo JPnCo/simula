@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -27,8 +28,30 @@ import jpnco.simula.actors.TimeSource;
  */
 public final class EngineImpl implements Engine {
 
+  /**
+   * Error/exception message template used when registering an actor instance that already stopped on
+   * this engine; stopped is terminal, so a new instance is required (FR-001, FR-002).
+   */
+  private static final String STOPPED_ACTOR_REGISTRATION_MSG =
+      "Actor %s is stopped and cannot be registered again; create a new instance\n";
+
+  /**
+   * Error/exception message template used when registering an actor whose id is currently registered
+   * on this engine; the ongoing execution of the running actor is left undisturbed (FR-008).
+   */
+  private static final String ALREADY_REGISTERED_MSG =
+      "Actor %s is already registered on this engine and cannot be registered twice\n";
+
   private final Map<Integer, Actor> actors = new ConcurrentHashMap<>();
   private final Set<Engine> children = new LinkedHashSet<>();
+
+  /**
+   * Identity memory of the actor instances this engine unregistered after a stop. It uses weak
+   * references so that an unreferenced stopped instance can be reclaimed and the memory never grows
+   * with the cumulative count of stopped actors (FR-005, FR-006). Accessed under the engine lock only,
+   * as a backstop for actors whose custom delegation does not report its stopped status.
+   */
+  private final Set<Actor> stoppedInstances = Collections.newSetFromMap(new WeakHashMap<>());
   private final LinkedBlockingQueue<Event> events = new LinkedBlockingQueue<>();
   private final Integer id;
   private final Engine parent;
@@ -441,14 +464,29 @@ public final class EngineImpl implements Engine {
   }
 
   /**
-   * Registers an actor in this engine, guarded by the engine lock (FR-012).
+   * Registers an actor in this engine, guarded by the engine lock (FR-012). Registration is refused
+   * before any mutation so that a refusal leaves no trace (FR-003): the actor is neither added nor
+   * subscribed, and no execution starts. A currently-registered actor is refused so that its ongoing
+   * execution stays undisturbed (FR-008), and a stopped instance is refused because stopping is
+   * terminal (FR-001, FR-002, FR-005).
    *
    * @param actor the actor to register
+   * @throws IllegalArgumentException if the actor is currently registered or already stopped on this
+   *                                  engine (FR-001, FR-002, FR-008)
    */
   private void register(final Actor actor) {
-    Logger.trace(this, "Registering actor %s:%d\n", actor.getName(), actor.getId());
     lock.lock();
     try {
+      if (actors.containsKey(actor.getId())) {
+        Logger.error(this, ALREADY_REGISTERED_MSG, actor.getName());
+        throw new IllegalArgumentException(String.format(ALREADY_REGISTERED_MSG, actor.getName()).trim());
+      }
+      if (stoppedInstances.contains(actor)) {
+        Logger.error(this, STOPPED_ACTOR_REGISTRATION_MSG, actor.getName());
+        throw new IllegalArgumentException(
+            String.format(STOPPED_ACTOR_REGISTRATION_MSG, actor.getName()).trim());
+      }
+      Logger.trace(this, "Registering actor %s:%d\n", actor.getName(), actor.getId());
       actors.put(actor.getId(), actor);
     } finally {
       lock.unlock();
@@ -720,6 +758,11 @@ public final class EngineImpl implements Engine {
           // System.out.printf("Actor %s is already unregistered\n", actor.getName());
           Logger.error(this, "Actor %s is already unregistered\n", actor.getName());
           Thread.dumpStack();
+        } else {
+          // The instance just stopped: remember it weakly so a later re-registration attempt is
+          // refused even for actors whose custom delegation does not report its stopped status
+          // (FR-001, FR-005, FR-006).
+          stoppedInstances.add(actor);
         }
       } else {
         Logger.error(this, "Unregister Engine %s - %d\n", actor.getName(), actors.size());
