@@ -78,7 +78,7 @@ public final class EngineImpl implements Engine {
 	 * @param timeFactor the time factor of this engine
 	 * @param mode       the execution mode of this engine
 	 */
-	private EngineImpl(final String title, final Engine parent, final int timeFactor, final ExecutionMode mode) {
+	public EngineImpl(final String title, final Engine parent, final int timeFactor, final ExecutionMode mode) {
 		this.parent = parent;
 		this.executionMode = Objects.requireNonNull(mode);
 		if (parent != null) {
