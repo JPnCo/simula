@@ -19,6 +19,7 @@ import jpnco.simula.Actor;
 import jpnco.simula.Engine;
 import jpnco.simula.Event;
 import jpnco.simula.actors.Logger;
+import jpnco.simula.actors.SimulaSupervisor;
 import jpnco.simula.actors.TimeSource;
 
 /**
@@ -81,6 +82,14 @@ public final class EngineImpl implements Engine {
   private final ReentrantLock lock = new ReentrantLock();
 
   /**
+   * The flag isSupervised is used to indicate if a SimulaSupervisor must be registered and started
+   * by this engine.
+   *
+   * <p>this flag is set to true by the simula supervision agent.
+   */
+  private boolean isSupervised = false;
+
+  /**
    * Builds a root engine with the default virtual-thread execution mode (FR-002).
    *
    * @param title the name of this engine
@@ -120,8 +129,10 @@ public final class EngineImpl implements Engine {
       final String title, final Engine parent, final int timeFactor, final ExecutionMode mode) {
     this.parent = parent;
     this.executionMode = Objects.requireNonNull(mode);
-    // The id must be assigned before addChild: a child is inserted into the parent's hash-based
-    // children set, and a later change of its id-based hashCode would make the entry unreachable
+    // The id must be assigned before addChild: a child is inserted into the
+    // parent's hash-based
+    // children set, and a later change of its id-based hashCode would make the
+    // entry unreachable
     // for remove and contains.
     id = IdBuilder.nextId();
     if (parent != null) {
@@ -133,6 +144,9 @@ public final class EngineImpl implements Engine {
     TIMEOUT = 10 * TIME_FACTOR;
     name = title;
     start(this);
+    if (isSupervised) {
+      registerAndStart(new SimulaSupervisor(this));
+    }
     logger = new Logger(this);
     registerAndStart(logger);
     if (parent == null) {
@@ -597,9 +611,9 @@ public final class EngineImpl implements Engine {
                 process(event);
             }
           } else {
-            //						System.out.printf("%s is still alive with %d actors and %d child engines
+            // System.out.printf("%s is still alive with %d actors and %d child engines
             // alive.\n",
-            //								getSimpleName(), actors.size(), children.size());
+            // getSimpleName(), actors.size(), children.size());
           }
         } catch (final InterruptedException e) {
           e.printStackTrace();
@@ -618,9 +632,12 @@ public final class EngineImpl implements Engine {
       exc.printStackTrace();
       Logger.trace(this, "is stopped\n");
     } finally {
-      // Single terminal point of every exit path, crash included: setting the flag first closes the
-      // door to post, then the parent is signaled that this engine is stopped, so it never waits
-      // forever on a dead child, and the pending events no one will ever process are released.
+      // Single terminal point of every exit path, crash included: setting the flag
+      // first closes the
+      // door to post, then the parent is signaled that this engine is stopped, so it
+      // never waits
+      // forever on a dead child, and the pending events no one will ever process are
+      // released.
       stopped = true;
       if (parent != null) {
         parent.signal(EventImpl.createEvent(Engine.STOPPED_ENGINE_EVENT, this, this));
@@ -706,10 +723,35 @@ public final class EngineImpl implements Engine {
   private void start(final Actor actor) {
     Objects.requireNonNull(actor);
     Logger.trace(this, "starting (%s)...\n", actor.getName());
+    if (hasStandardDelegation(actor)) {
+      // The standard delegate subscribes itself to these topics from its own thread; subscribing
+      // the
+      // actor now, before the thread starts, closes the window where an event signaled right after
+      // registration would be lost because the subscriptions are not in place yet.
+      subscribe(actor, Engine.START_EVENT);
+      subscribe(actor, Engine.STOP_EVENT);
+      subscribe(actor, Engine.STOP_ME_EVENT);
+    }
     if (ExecutionMode.VIRTUAL.equals(executionMode)) {
       Thread.ofVirtual().name(actor.getName()).start(actor);
     } else {
       new Thread(actor, actor.getName()).start();
+    }
+  }
+
+  /**
+   * Tells whether the actor relies on the standard {@link ActorDelegate} delegation. Custom
+   * delegations, including engines and time sources which refuse to expose a delegate, own their
+   * subscriptions and must not be pre-subscribed here (FR-005).
+   *
+   * @param actor the actor to inspect
+   * @return {@code true} when the engine may mirror the delegate's own subscriptions
+   */
+  private boolean hasStandardDelegation(final Actor actor) {
+    try {
+      return actor.getDelegate() instanceof ActorDelegate;
+    } catch (final UnsupportedOperationException exc) {
+      return false;
     }
   }
 
@@ -811,8 +853,10 @@ public final class EngineImpl implements Engine {
           Logger.error(this, "Actor %s is already unregistered\n", actor.getName());
           Thread.dumpStack();
         } else {
-          // The instance just stopped: remember it weakly so a later re-registration attempt is
-          // refused even for actors whose custom delegation does not report its stopped status
+          // The instance just stopped: remember it weakly so a later re-registration
+          // attempt is
+          // refused even for actors whose custom delegation does not report its stopped
+          // status
           // (FR-001, FR-005, FR-006).
           stoppedInstances.add(actor);
         }

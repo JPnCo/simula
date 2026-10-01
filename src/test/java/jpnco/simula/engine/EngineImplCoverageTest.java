@@ -533,6 +533,20 @@ class EngineImplCoverageTest {
     assertFalse(root.getChildren().contains(child), "the parent must remove the stopped child");
   }
 
+  /**
+   * Stopping a child engine right after its construction still stops its actors: the
+   * START/STOP/STOP_ME subscriptions must be in place before the actor threads start, so no stop
+   * event can be lost to a subscription race.
+   */
+  @Test
+  void childStoppedRightAfterConstructionIsRemoved() throws InterruptedException {
+    final EngineImpl child = new EngineImpl("instantStopChild", root);
+    child.stop();
+    awaitChildGone(child);
+    assertTrue(child.isStopped(), "the child engine must have stopped");
+    assertFalse(root.getChildren().contains(child), "the parent must remove the stopped child");
+  }
+
   /** The engine purges its event queue when its main loop completes. */
   @Test
   void stoppedEnginePurgesItsEventQueue() throws Exception {
