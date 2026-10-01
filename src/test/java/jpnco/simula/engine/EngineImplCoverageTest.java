@@ -565,13 +565,18 @@ class EngineImplCoverageTest {
    * delay.
    */
   private void awaitChildGone(final EngineImpl child) throws Exception {
-    final long deadline = System.currentTimeMillis() + 15000;
+    // Generous on purpose: the wait loop returns as soon as the child is removed, so this only
+    // bounds the pathological case where the JDK virtual-thread scheduler delays the parent's
+    // wake-up behind the engine poll timeout (20 s at TIME_FACTOR 2).
+    final long deadline = System.currentTimeMillis() + 45000;
     while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
       Thread.sleep(50);
     }
     if (root.getChildren().contains(child)) {
       final Field queueField = EngineImpl.class.getDeclaredField("events");
       queueField.setAccessible(true);
+      final Field delegateQueueField = ActorDelegate.class.getDeclaredField("events");
+      delegateQueueField.setAccessible(true);
       fail(
           "the parent must remove the stopped child: childStopped="
               + child.isStopped()
@@ -579,6 +584,10 @@ class EngineImplCoverageTest {
               + child.getActors().size()
               + ", loggerStopped="
               + child.getLogger().isStopped()
+              + ", loggerDelegate="
+              + child.getLogger().getDelegate().getClass().getSimpleName()
+              + ", loggerQueue="
+              + delegateQueueField.get(child.getLogger().getDelegate())
               + ", childQueue="
               + ((BlockingQueue<?>) queueField.get(child))
               + ", rootQueue="
