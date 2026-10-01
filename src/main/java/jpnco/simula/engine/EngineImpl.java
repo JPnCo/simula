@@ -589,8 +589,15 @@ public final class EngineImpl implements Engine {
                 processStopEvent(event);
                 break;
               case Engine.STOPPED_ACTOR_EVENT:
-                if (processStoppedActorEvent(event) && children.isEmpty()) {
-                  break LOOP;
+                if (processStoppedActorEvent(event)) {
+                  lock.lock();
+                  try {
+                    if (children.isEmpty()) {
+                      break LOOP;
+                    }
+                  } finally {
+                    lock.unlock();
+                  }
                 }
                 break;
               case Engine.STOPPED_ENGINE_EVENT:
@@ -799,15 +806,15 @@ public final class EngineImpl implements Engine {
   @Override
   public String toString() {
     final StringBuffer buf = new StringBuffer();
-    buf.append("[Engine ");
-    buf.append(getName());
-    buf.append(" #child engines=");
-    buf.append(children.size());
-    buf.append(" #actors=");
-    buf.append(actors.size());
-    buf.append("\n");
     lock.lock();
     try {
+      buf.append("[Engine ");
+      buf.append(getName());
+      buf.append(" #child engines=");
+      buf.append(children.size());
+      buf.append(" #actors=");
+      buf.append(actors.size());
+      buf.append("\n");
       actors.values().stream()
           .forEach(
               a -> {

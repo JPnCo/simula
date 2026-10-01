@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -517,19 +518,14 @@ class EngineImplCoverageTest {
    * hash-based children set).
    */
   @Test
-  void stoppedChildEngineIsRemovedFromParent() throws InterruptedException {
+  void stoppedChildEngineIsRemovedFromParent() throws Exception {
     final EngineImpl child = new EngineImpl("childRemovalChild", root);
     child.start();
     waitForRun(200);
     assertTrue(
         root.getChildren().contains(child), "the child should be registered before stopping");
     child.stop();
-    // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
-    // terminates only after that delay.
-    final long deadline = System.currentTimeMillis() + 15000;
-    while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
-      Thread.sleep(50);
-    }
+    awaitChildGone(child);
     assertFalse(root.getChildren().contains(child), "the parent must remove the stopped child");
   }
 
@@ -539,7 +535,7 @@ class EngineImplCoverageTest {
    * event can be lost to a subscription race.
    */
   @Test
-  void childStoppedRightAfterConstructionIsRemoved() throws InterruptedException {
+  void childStoppedRightAfterConstructionIsRemoved() throws Exception {
     final EngineImpl child = new EngineImpl("instantStopChild", root);
     child.stop();
     awaitChildGone(child);
@@ -557,23 +553,36 @@ class EngineImplCoverageTest {
     child.start();
     waitForRun(200);
     child.stop();
-    // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
-    // terminates only after that delay.
-    final long deadline = System.currentTimeMillis() + 15000;
-    while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
-      Thread.sleep(50);
-    }
+    awaitChildGone(child);
     assertFalse(root.getChildren().contains(child), "the child engine should have stopped");
     assertTrue(queue.isEmpty(), "the stopped engine must have purged its event queue");
   }
 
-  /** Waits until the root engine has removed the given child engine from its children. */
-  private void awaitChildGone(final EngineImpl child) throws InterruptedException {
-    // The engine logger waits its purge-queue timeout (5 s) before stopping, so the child engine
-    // terminates only after that delay.
+  /**
+   * Waits until the root engine has removed the given child engine from its children, and fails
+   * with the terminal states of both engines if the removal never happens. The engine logger waits
+   * its purge-queue timeout (5 s) before stopping, so the child engine terminates only after that
+   * delay.
+   */
+  private void awaitChildGone(final EngineImpl child) throws Exception {
     final long deadline = System.currentTimeMillis() + 15000;
     while (root.getChildren().contains(child) && System.currentTimeMillis() < deadline) {
       Thread.sleep(50);
+    }
+    if (root.getChildren().contains(child)) {
+      final Field queueField = EngineImpl.class.getDeclaredField("events");
+      queueField.setAccessible(true);
+      fail(
+          "the parent must remove the stopped child: childStopped="
+              + child.isStopped()
+              + ", childActors="
+              + child.getActors().size()
+              + ", loggerStopped="
+              + child.getLogger().isStopped()
+              + ", childQueue="
+              + ((BlockingQueue<?>) queueField.get(child))
+              + ", rootQueue="
+              + ((BlockingQueue<?>) queueField.get(root)));
     }
   }
 
@@ -598,7 +607,7 @@ class EngineImplCoverageTest {
 
   /** An engine child that dies on a throwable in its loop still notifies its parent. */
   @Test
-  void crashedChildEngineIsRemovedFromParent() throws InterruptedException {
+  void crashedChildEngineIsRemovedFromParent() throws Exception {
     final EngineImpl child = new EngineImpl("crashChild", root);
     child.start();
     waitForRun(200);
@@ -612,7 +621,7 @@ class EngineImplCoverageTest {
 
   /** Registering an actor on a terminal engine is refused, leaving no trace. */
   @Test
-  void registerOnStoppedEngineThrows() throws InterruptedException {
+  void registerOnStoppedEngineThrows() throws Exception {
     final EngineImpl child = new EngineImpl("deadRegisterChild", root);
     child.start();
     waitForRun(200);
