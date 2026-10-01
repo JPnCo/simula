@@ -146,8 +146,7 @@ public final class EngineImpl implements Engine {
     // The id must be assigned before addChild: a child is inserted into the
     // parent's hash-based
     // children set, and a later change of its id-based hashCode would make the
-    // entry unreachable
-    // for remove and contains.
+    // entry unreachable for remove and contains.
     id = IdBuilder.nextId();
     if (parent != null) {
       parent.addChild(this);
