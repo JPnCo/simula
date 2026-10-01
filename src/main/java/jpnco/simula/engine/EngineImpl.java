@@ -85,7 +85,8 @@ public final class EngineImpl implements Engine {
    * The flag isSupervised is used to indicate if a SimulaSupervisor must be registered and started
    * by this engine.
    *
-   * <p>this flag is set to true by the simula supervision agent.
+   * <p>this flag stays false in the shipped code; it is raised to true at runtime by the simula
+   * supervision agent, a Javassist-based agent that instruments this class at load time.
    */
   private boolean isSupervised = false;
 
@@ -108,6 +109,19 @@ public final class EngineImpl implements Engine {
    */
   public EngineImpl(final String title, final Engine parent, final ExecutionMode mode) {
     this(title, parent, 0, mode);
+  }
+
+  /**
+   * Registers and starts the {@link SimulaSupervisor} when this engine is supervised, before its
+   * logger is created.
+   *
+   * <p>The agent anchors its instrumentation on this method: keeping it and its name stable is
+   * required, so do not remove or rename it.
+   */
+  private void checkSupervision() {
+    if (isSupervised) {
+      registerAndStart(new SimulaSupervisor(this));
+    }
   }
 
   /**
@@ -144,9 +158,7 @@ public final class EngineImpl implements Engine {
     TIMEOUT = 10 * TIME_FACTOR;
     name = title;
     start(this);
-    if (isSupervised) {
-      registerAndStart(new SimulaSupervisor(this));
-    }
+    checkSupervision();
     logger = new Logger(this);
     registerAndStart(logger);
     if (parent == null) {
