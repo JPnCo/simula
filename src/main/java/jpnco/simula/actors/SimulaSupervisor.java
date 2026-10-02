@@ -61,7 +61,11 @@ public final class SimulaSupervisor implements Actor {
   private final CopyOnWriteArrayList<SupervisionListener> listeners = new CopyOnWriteArrayList<>();
 
   /**
-   * Builds a supervision actor for the given engine, subscribing to the lifecycle events.
+   * Builds a supervision actor for the given engine, subscribing to the lifecycle events. Startup
+   * events already signaled by the actors registered on the engine cannot be received
+   * retroactively; those actors are therefore seeded directly as {@link Status#STARTED} from the
+   * engine's registered-actor list, so a supervisor created after them misses no start (FR-003,
+   * FR-009). A start of a component on another engine is not observed: supervision is per engine.
    *
    * @param engine the engine that runs this actor (FR-002)
    * @throws NullPointerException if the engine is null
@@ -73,6 +77,9 @@ public final class SimulaSupervisor implements Actor {
     subscribe(Engine.STARTED_ACTOR_EVENT);
     subscribe(Engine.STOPPED_ACTOR_EVENT);
     subscribe(Engine.STOPPED_ENGINE_EVENT);
+    for (final Actor actor : engine.getActors()) {
+      record(actor, Status.STARTED);
+    }
   }
 
   /**

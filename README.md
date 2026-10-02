@@ -289,6 +289,8 @@ supervisor.addSupervisionListener(
         System.out.println(component.getName() + ": " + previous + " -> " + current));
 ```
 
+A supervisor created **after** some actors already started still sees them: at construction it seeds all actors already registered on its engine as `STARTED`. Supervision is **per engine**: a supervisor observes only its own engine's actors (and child engines' stops), never actors registered on child engines — create one supervisor per engine for full coverage.
+
 A listener is invoked synchronously in the thread that recorded the transition (which may be any thread), once per actual change, after the new status is visible in `getStates()`. Implementations must be thread-safe and should not block; a throwing listener is isolated and logged, never affecting the recorded state or the other listeners. `removeSupervisionListener` detaches a listener; `null` is rejected with `NullPointerException` and double registration is a no-op.
 
 ## Logging

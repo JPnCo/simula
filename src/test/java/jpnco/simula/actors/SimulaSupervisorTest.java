@@ -41,6 +41,7 @@ class SimulaSupervisorTest {
   void setUp() {
     engine = mock(Engine.class);
     when(engine.getTime()).thenReturn(0);
+    when(engine.getActors()).thenReturn(List.of());
   }
 
   private Actor source(final String name) {
@@ -379,6 +380,31 @@ class SimulaSupervisorTest {
     s.addSupervisionListener((component, previous, current) -> notifications.add("tick"));
     s.process(lifecycleEvent(source("other"), Engine.STARTED_ACTOR_EVENT));
     assertEquals(List.of("tick"), notifications);
+  }
+
+  // ---------- Late supervision: snapshot of already-registered actors (FR-003, FR-009) ----------
+
+  @Test
+  void constructorsSeedsAlreadyRegisteredActorsAsStarted() {
+    final Actor first = source("first");
+    final Actor second = source("second");
+    when(engine.getActors()).thenReturn(List.of(first, second));
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    assertEquals(Status.STARTED, s.getStates().get(first));
+    assertEquals(Status.STARTED, s.getStates().get(second));
+  }
+
+  @Test
+  void seededActorStopNotifiesTransitionFromStarted() {
+    final Actor first = source("first");
+    when(engine.getActors()).thenReturn(List.of(first));
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<String> notifications = new ArrayList<>();
+    s.addSupervisionListener(
+        (component, previous, current) ->
+            notifications.add(component.getName() + ": " + previous + " -> " + current));
+    s.process(lifecycleEvent(first, Engine.STOPPED_ACTOR_EVENT));
+    assertEquals(List.of("first: STARTED -> STOPPED"), notifications);
   }
 
   // ---------- US4: documented external-actor contract (FR-007) ----------
