@@ -1,9 +1,9 @@
 package jpnco.simula.actors;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
 import jpnco.simula.Event;
@@ -42,7 +42,12 @@ public final class SimulaSupervisor implements Actor {
   private final Actor delegate;
   private final Integer id;
   private final Engine engine;
-  private final Map<Actor, Status> states = new HashMap<>();
+
+  /**
+   * Records the observed status per component. A concurrent map because process() may be called by
+   * any notifying thread (FR-007) while getStates() is iterated by observers (FR-006).
+   */
+  private final Map<Actor, Status> states = new ConcurrentHashMap<>();
 
   /**
    * Builds a supervision actor for the given engine, subscribing to the lifecycle events.

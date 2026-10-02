@@ -12,7 +12,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
 import jpnco.simula.Event;
@@ -143,6 +150,66 @@ class SimulaSupervisorTest {
     s.process(lifecycleEvent(other, "UNRELATED"));
     assertTrue(s.getStates().isEmpty());
     verify(engine, never()).signal(any(Event.class));
+  }
+
+  /**
+   * Concurrent process() calls from external threads (FR-007) while the recorded state is iterated
+   * must neither corrupt the map nor fail: the recording must never throw and every observed actor
+   * must end up recorded exactly once (FR-006).
+   */
+  @Test
+  void concurrentRecordingAndReadingKeepsTheMapConsistent() throws Exception {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final int producers = 3;
+    final int perProducer = 1500;
+    final List<List<Actor>> batches = new ArrayList<>();
+    for (int p = 0; p < producers; p++) {
+      final List<Actor> batch = new ArrayList<>();
+      for (int i = 0; i < perProducer; i++) {
+        batch.add(source("actor-" + p + "-" + i));
+      }
+      batches.add(batch);
+    }
+    final ExecutorService pool = Executors.newFixedThreadPool(producers + 1);
+    final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
+    final CountDownLatch producersDone = new CountDownLatch(producers);
+    try {
+      for (int p = 0; p < producers; p++) {
+        final List<Actor> batch = batches.get(p);
+        pool.submit(
+            () -> {
+              try {
+                for (final Actor actor : batch) {
+                  s.process(lifecycleEvent(actor, Engine.STARTED_ACTOR_EVENT));
+                }
+              } catch (final Throwable exc) {
+                failures.add(exc);
+              } finally {
+                producersDone.countDown();
+              }
+            });
+      }
+      pool.submit(
+          () -> {
+            try {
+              while (producersDone.getCount() > 0) {
+                for (final Map.Entry<Actor, Status> entry : s.getStates().entrySet()) {
+                  assertNotNull(entry.getValue());
+                }
+              }
+            } catch (final Throwable exc) {
+              failures.add(exc);
+            }
+          });
+      pool.shutdown();
+      assertTrue(pool.awaitTermination(60, TimeUnit.SECONDS), "stress should complete");
+    } finally {
+      pool.shutdownNow();
+    }
+    assertTrue(
+        failures.isEmpty(),
+        "concurrent recording and reading must never corrupt the state: " + failures);
+    assertEquals(producers * perProducer, s.getStates().size());
   }
 
   // ---------- US4: documented external-actor contract (FR-007) ----------
