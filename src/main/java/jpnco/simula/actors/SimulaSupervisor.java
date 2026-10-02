@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import jpnco.simula.Actor;
 import jpnco.simula.Engine;
 import jpnco.simula.Event;
@@ -31,6 +32,9 @@ public final class SimulaSupervisor implements Actor {
   /** Error message when the engine is null (FR-002). */
   private static final String INVALID_ENGINE = "engine must not be null";
 
+  /** Error message when a listener throws during notification (FR-005). */
+  private static final String LISTENER_FAILURE = "supervision listener failed: %s\n";
+
   /** The lifecycle status of an observed component (FR-006). */
   public enum Status {
     /** The component has started. */
@@ -50,6 +54,13 @@ public final class SimulaSupervisor implements Actor {
   private final Map<Actor, Status> states = new ConcurrentHashMap<>();
 
   /**
+   * The registered supervision listeners. A copy-on-write list because listeners may be added and
+   * removed by any thread at any time, including from inside a notification, while notifications
+   * iterate without a lock (FR-006).
+   */
+  private final CopyOnWriteArrayList<SupervisionListener> listeners = new CopyOnWriteArrayList<>();
+
+  /**
    * Builds a supervision actor for the given engine, subscribing to the lifecycle events.
    *
    * @param engine the engine that runs this actor (FR-002)
@@ -62,6 +73,31 @@ public final class SimulaSupervisor implements Actor {
     subscribe(Engine.STARTED_ACTOR_EVENT);
     subscribe(Engine.STOPPED_ACTOR_EVENT);
     subscribe(Engine.STOPPED_ENGINE_EVENT);
+  }
+
+  /**
+   * Registers a supervision listener, notified synchronously on every recorded status transition
+   * (FR-003). Safe from any thread, including from inside a notification (FR-006). Duplicate
+   * detection is equals-based: registering the same listener again is a no-op (FR-001).
+   *
+   * @param listener the listener to register
+   * @throws NullPointerException if the listener is null (FR-001)
+   */
+  public void addSupervisionListener(final SupervisionListener listener) {
+    listeners.addIfAbsent(Objects.requireNonNull(listener));
+  }
+
+  /**
+   * Unregisters a supervision listener, taking effect for every subsequent record; removing a
+   * listener that is not registered is a silent no-op (FR-007). Safe from any thread, including
+   * from inside a notification (FR-006); whether an in-flight notification still reaches a
+   * just-removed listener is unspecified.
+   *
+   * @param listener the listener to unregister
+   * @throws NullPointerException if the listener is null (FR-007)
+   */
+  public void removeSupervisionListener(final SupervisionListener listener) {
+    listeners.remove(Objects.requireNonNull(listener));
   }
 
   /**
@@ -160,12 +196,39 @@ public final class SimulaSupervisor implements Actor {
   }
 
   /**
-   * Records the given status for the given component (FR-006, FR-009, FR-010).
+   * Records the given status for the given component (FR-006, FR-009, FR-010) and, when the
+   * recorded status actually changes, notifies the registered listeners after the update (FR-003,
+   * FR-004).
    *
    * @param component the component to record
    * @param status the status to record
    */
   private void record(final Actor component, final Status status) {
-    states.put(component, status);
+    final Status previous = states.put(component, status);
+    if (previous != status) {
+      notifyListeners(component, previous, status);
+    }
+  }
+
+  /**
+   * Notifies every registered listener of a recorded transition (FR-003). No-op when no listener is
+   * registered (FR-008). A listener that throws is isolated: its {@link RuntimeException} is caught
+   * and logged, and the recording and the other listeners are unaffected (FR-005).
+   *
+   * @param component the component whose status changed
+   * @param previous the status recorded before the change, {@code null} if never recorded
+   * @param current the newly recorded status
+   */
+  private void notifyListeners(final Actor component, final Status previous, final Status current) {
+    if (listeners.isEmpty()) {
+      return;
+    }
+    for (final SupervisionListener listener : listeners) {
+      try {
+        listener.statusChanged(component, previous, current);
+      } catch (final RuntimeException exception) {
+        Logger.error(this, LISTENER_FAILURE, exception);
+      }
+    }
   }
 }

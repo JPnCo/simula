@@ -131,6 +131,7 @@
 							<include>src/main/java/jpnco/simula/actors/Barrier.java</include>
 							<include>src/main/java/jpnco/simula/actors/BarrierMode.java</include>
 							<include>src/main/java/jpnco/simula/actors/SimulaSupervisor.java</include>
+						<include>src/main/java/jpnco/simula/actors/SupervisionListener.java</include>
 							<include>src/test/java/jpnco/simula/engine/ActorDelegateTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/ExecutionModeTest.java</include>
 							<include>src/test/java/jpnco/simula/engine/ConcurrencyTest.java</include>

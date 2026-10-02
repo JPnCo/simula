@@ -212,6 +212,175 @@ class SimulaSupervisorTest {
     assertEquals(producers * perProducer, s.getStates().size());
   }
 
+  // ---------- Listener notifications (feature 006 US1: FR-002, FR-003, FR-004, FR-008) ----------
+
+  @Test
+  void listenerIsNotifiedOfEachTransition() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<String> notifications = new ArrayList<>();
+    s.addSupervisionListener(
+        (component, previous, current) ->
+            notifications.add(component.getName() + ": " + previous + " -> " + current));
+    final Actor other = source("other");
+    s.process(lifecycleEvent(other, Engine.STARTED_ACTOR_EVENT));
+    s.process(lifecycleEvent(other, Engine.STOPPED_ACTOR_EVENT));
+    final Actor child = source("child");
+    s.process(lifecycleEvent(child, Engine.STOPPED_ENGINE_EVENT));
+    assertEquals(
+        List.of("other: null -> STARTED", "other: STARTED -> STOPPED", "child: null -> STOPPED"),
+        notifications);
+  }
+
+  @Test
+  void noNotificationWhenStatusUnchanged() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<String> notifications = new ArrayList<>();
+    s.addSupervisionListener((component, previous, current) -> notifications.add("tick"));
+    final Actor other = source("other");
+    s.process(lifecycleEvent(other, Engine.STARTED_ACTOR_EVENT));
+    s.process(lifecycleEvent(other, Engine.STARTED_ACTOR_EVENT));
+    assertEquals(1, notifications.size());
+  }
+
+  @Test
+  void notificationSeesTheUpdatedState() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<Status> seen = new ArrayList<>();
+    s.addSupervisionListener(
+        (component, previous, current) -> seen.add(s.getStates().get(component)));
+    final Actor other = source("other");
+    s.process(lifecycleEvent(other, Engine.STARTED_ACTOR_EVENT));
+    assertEquals(List.of(Status.STARTED), seen);
+  }
+
+  @Test
+  void processingWithoutListenerIsUnchanged() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final Actor other = source("other");
+    s.process(lifecycleEvent(other, Engine.STARTED_ACTOR_EVENT));
+    s.process(lifecycleEvent(other, Engine.STOPPED_ACTOR_EVENT));
+    final Actor child = source("child");
+    s.process(lifecycleEvent(child, Engine.STOPPED_ENGINE_EVENT));
+    assertEquals(Status.STOPPED, s.getStates().get(other));
+    assertEquals(Status.STOPPED, s.getStates().get(child));
+  }
+
+  // ---------- Listener management (feature 006 US2: FR-005, FR-006, FR-007) ----------
+
+  @Test
+  void everyListenerIsNotifiedAndAThrowingListenerIsIsolated() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<String> notifications = new ArrayList<>();
+    s.addSupervisionListener(
+        (component, previous, current) -> {
+          throw new IllegalStateException("misbehaving observer");
+        });
+    s.addSupervisionListener(
+        (component, previous, current) -> notifications.add(component.getName()));
+    final Actor other = source("other");
+    s.process(lifecycleEvent(other, Engine.STARTED_ACTOR_EVENT));
+    assertEquals(List.of("other"), notifications);
+    assertEquals(Status.STARTED, s.getStates().get(other));
+  }
+
+  @Test
+  void removedListenerIsNoLongerNotified() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<String> kept = new ArrayList<>();
+    final List<String> dropped = new ArrayList<>();
+    final SupervisionListener gone = (component, previous, current) -> dropped.add("tick");
+    s.addSupervisionListener(gone);
+    s.addSupervisionListener((component, previous, current) -> kept.add("tick"));
+    final Actor first = source("first");
+    s.process(lifecycleEvent(first, Engine.STARTED_ACTOR_EVENT));
+    s.removeSupervisionListener(gone);
+    final Actor second = source("second");
+    s.process(lifecycleEvent(second, Engine.STARTED_ACTOR_EVENT));
+    assertEquals(List.of("tick"), dropped);
+    assertEquals(List.of("tick", "tick"), kept);
+  }
+
+  @Test
+  void concurrentProcessAndListenerManagementNeverThrows() throws Exception {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final int producers = 3;
+    final int perProducer = 500;
+    final List<List<Actor>> batches = new ArrayList<>();
+    for (int p = 0; p < producers; p++) {
+      final List<Actor> batch = new ArrayList<>();
+      for (int i = 0; i < perProducer; i++) {
+        batch.add(source("actor-" + p + "-" + i));
+      }
+      batches.add(batch);
+    }
+    final ExecutorService pool = Executors.newFixedThreadPool(producers + 1);
+    final List<Throwable> failures = Collections.synchronizedList(new ArrayList<>());
+    try {
+      for (int p = 0; p < producers; p++) {
+        final List<Actor> batch = batches.get(p);
+        pool.submit(
+            () -> {
+              try {
+                for (final Actor actor : batch) {
+                  s.process(lifecycleEvent(actor, Engine.STARTED_ACTOR_EVENT));
+                }
+              } catch (final Throwable exc) {
+                failures.add(exc);
+              }
+            });
+      }
+      pool.submit(
+          () -> {
+            try {
+              for (int i = 0; i < 100; i++) {
+                final SupervisionListener churn = (component, previous, current) -> {};
+                s.addSupervisionListener(churn);
+                s.removeSupervisionListener(churn);
+              }
+            } catch (final Throwable exc) {
+              failures.add(exc);
+            }
+          });
+      pool.shutdown();
+      assertTrue(pool.awaitTermination(60, TimeUnit.SECONDS), "stress should complete");
+    } finally {
+      pool.shutdownNow();
+    }
+    assertTrue(failures.isEmpty(), "listener management must never break recording: " + failures);
+    assertEquals(producers * perProducer, s.getStates().size());
+  }
+
+  // ---------- Listener misuse (feature 006 US3: FR-001, FR-007) ----------
+
+  @Test
+  void addAndRemoveRejectNullListener() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    assertThrows(NullPointerException.class, () -> s.addSupervisionListener(null));
+    assertThrows(NullPointerException.class, () -> s.removeSupervisionListener(null));
+  }
+
+  @Test
+  void addingTheSameListenerTwiceNotifiesOnce() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    final List<String> notifications = new ArrayList<>();
+    final SupervisionListener listener =
+        (component, previous, current) -> notifications.add("tick");
+    s.addSupervisionListener(listener);
+    s.addSupervisionListener(listener);
+    s.process(lifecycleEvent(source("other"), Engine.STARTED_ACTOR_EVENT));
+    assertEquals(List.of("tick"), notifications);
+  }
+
+  @Test
+  void removingAnAbsentListenerIsSilent() {
+    final SimulaSupervisor s = new SimulaSupervisor(engine);
+    s.removeSupervisionListener((component, previous, current) -> {});
+    final List<String> notifications = new ArrayList<>();
+    s.addSupervisionListener((component, previous, current) -> notifications.add("tick"));
+    s.process(lifecycleEvent(source("other"), Engine.STARTED_ACTOR_EVENT));
+    assertEquals(List.of("tick"), notifications);
+  }
+
   // ---------- US4: documented external-actor contract (FR-007) ----------
 
   @Test

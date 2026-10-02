@@ -268,6 +268,29 @@ Constructor parameters:
 
 The constructor throws `IllegalArgumentException` if `participants` is non-positive, if a topic is blank/null, or if `mode` is null.
 
+### SimulaSupervisor
+
+A **read-only observer** of the simulation lifecycle. It subscribes to the actor-start and stop events of its engine and records the status (`STARTED`/`STOPPED`) of every component it observes, queryable at any time via `getStates()`.
+
+```java
+import jpnco.simula.actors.SimulaSupervisor;
+
+SimulaSupervisor supervisor = new SimulaSupervisor(engine);
+engine.registerAndStart(supervisor);
+// ...
+supervisor.getStates(); // { actorA=STARTED, actorB=STOPPED, ... }
+```
+
+Listeners can be attached to be pushed every status transition instead of polling:
+
+```java
+supervisor.addSupervisionListener(
+    (component, previous, current) ->
+        System.out.println(component.getName() + ": " + previous + " -> " + current));
+```
+
+A listener is invoked synchronously in the thread that recorded the transition (which may be any thread), once per actual change, after the new status is visible in `getStates()`. Implementations must be thread-safe and should not block; a throwing listener is isolated and logged, never affecting the recorded state or the other listeners. `removeSupervisionListener` detaches a listener; `null` is rejected with `NullPointerException` and double registration is a no-op.
+
 ## Logging
 
 See [Built-in actors → Logger](#logger). The root engine's logger captures the activity of all actors and prints it to standard output, filtered by the active levels.
@@ -332,7 +355,7 @@ The public interfaces live in the `jpnco.simula` package:
 
 The predefined topic constants are exposed on `Engine`: `START_EVENT`, `STOP_EVENT`, `STOP_ME_EVENT`, `STOPPED_ACTOR_EVENT`, `STOPPED_ENGINE_EVENT`, `TIME_EVENT`, `LOG_EVENT`, `PURGE_QUEUE_EVENT`, `REQUEST_ALARM_EVENT`, `CLEAR_ALARM_EVENT`.
 
-Implementations and factories live in `jpnco.simula.engine` (`EngineImpl`, `EventImpl`, `ActorDelegate`, `ExecutionMode`, `IdBuilder`), and the built-in actors in `jpnco.simula.actors` (`Logger`, `TimeSource`, `Barrier`, `BarrierMode`).
+Implementations and factories live in `jpnco.simula.engine` (`EngineImpl`, `EventImpl`, `ActorDelegate`, `ExecutionMode`, `IdBuilder`), and the built-in actors in `jpnco.simula.actors` (`Logger`, `TimeSource`, `Barrier`, `BarrierMode`, `SimulaSupervisor` with its `Status` enum, `SupervisionListener`). `SimulaSupervisor` adds `getStates()`, `addSupervisionListener(SupervisionListener)` and `removeSupervisionListener(SupervisionListener)`.
 
 ---
 
