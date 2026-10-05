@@ -471,6 +471,11 @@ public final class EngineImpl implements Engine {
   private void processStartEvent(final Event event) {
     Logger.debug(this, "===== processStartEvent(%s) =====\n", getName());
     signal(EventImpl.createEvent(Engine.STARTED_ACTOR_EVENT, this));
+    if (parent != null) {
+      // Symmetric to the STOPPED_ENGINE_EVENT of run(): the parent observes the full
+      // lifecycle of its child engines, start included, not only their stop.
+      parent.signal(EventImpl.createEvent(Engine.STARTED_ACTOR_EVENT, this));
+    }
     signalToChildren(event);
   }
 

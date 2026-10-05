@@ -65,7 +65,8 @@ public final class SimulaSupervisor implements Actor {
    * events already signaled by the actors registered on the engine cannot be received
    * retroactively; those actors are therefore seeded directly as {@link Status#STARTED} from the
    * engine's registered-actor list, so a supervisor created after them misses no start (FR-003,
-   * FR-009). A start of a component on another engine is not observed: supervision is per engine.
+   * FR-009). It observes its engine's actors and its direct child engines (start and stop); actors
+   * registered on other engines are not observed: supervision is per engine.
    *
    * @param engine the engine that runs this actor (FR-002)
    * @throws NullPointerException if the engine is null

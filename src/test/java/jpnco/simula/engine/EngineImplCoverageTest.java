@@ -22,6 +22,8 @@ import jpnco.simula.Engine;
 import jpnco.simula.Event;
 import jpnco.simula.actors.Logger;
 import jpnco.simula.actors.Logger.Level;
+import jpnco.simula.actors.SimulaSupervisor;
+import jpnco.simula.actors.SimulaSupervisor.Status;
 import jpnco.simula.actors.TimeSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -541,6 +543,55 @@ class EngineImplCoverageTest {
     awaitChildGone(child);
     assertTrue(child.isStopped(), "the child engine must have stopped");
     assertFalse(root.getChildren().contains(child), "the parent must remove the stopped child");
+  }
+
+  /**
+   * A child engine that starts signals its parent, so a supervisor registered on the parent records
+   * the child as STARTED: the parent's supervisor sees both lifecycle transitions of its child
+   * engines, not only their stop.
+   */
+  @Test
+  void childEngineStartIsVisibleToParentSupervisor() throws Exception {
+    final SimulaSupervisor supervisor = new SimulaSupervisor(root);
+    root.registerAndStart(supervisor);
+    final List<String> notifications = new ArrayList<>();
+    supervisor.addSupervisionListener(
+        (component, previous, current) ->
+            notifications.add(component.getName() + ": " + previous + " -> " + current));
+    final EngineImpl child = new EngineImpl("startVisibleChild", root);
+    child.start();
+    final long deadline = System.currentTimeMillis() + 15000;
+    while (supervisor.getStates().get(child) != Status.STARTED
+        && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertEquals(Status.STARTED, supervisor.getStates().get(child));
+    assertTrue(
+        notifications.contains(child.getName() + ": null -> STARTED"),
+        "the parent supervisor must be notified of the child start: " + notifications);
+  }
+
+  /** A child engine stopped while the simulation runs is recorded STARTED then STOPPED. */
+  @Test
+  void childEngineStopCompletesTheTransitionSeenByParentSupervisor() throws Exception {
+    final SimulaSupervisor supervisor = new SimulaSupervisor(root);
+    root.registerAndStart(supervisor);
+    final List<String> notifications = new ArrayList<>();
+    supervisor.addSupervisionListener(
+        (component, previous, current) ->
+            notifications.add(component.getName() + ": " + previous + " -> " + current));
+    final EngineImpl child = new EngineImpl("startVisibleStopChild", root);
+    child.start();
+    final long startDeadline = System.currentTimeMillis() + 15000;
+    while (supervisor.getStates().get(child) != Status.STARTED
+        && System.currentTimeMillis() < startDeadline) {
+      Thread.sleep(50);
+    }
+    child.stop();
+    awaitChildGone(child);
+    assertEquals(
+        List.of(child.getName() + ": null -> STARTED", child.getName() + ": STARTED -> STOPPED"),
+        notifications);
   }
 
   /** The engine purges its event queue when its main loop completes. */
