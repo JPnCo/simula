@@ -210,6 +210,19 @@ Event periodic = EventImpl.createEvent(
 engine.signal(oneShot);
 ```
 
+A **Poisson** alarm replaces the fixed period by a rate (mean firings per unit of simulated time): each firing re-arms after a random wait drawn from the exponential distribution of parameter `rate` — whole units, at least one. An optional seed makes the sequence reproducible:
+
+```java
+Event poisson = EventImpl.createEvent(
+    Engine.REQUEST_ALARM_EVENT, sourceActor,
+    "ALARM_TOPIC", 10, TimeSource.POISSON, 2.0);      // rate 2, unseeded
+Event seeded = EventImpl.createEvent(
+    Engine.REQUEST_ALARM_EVENT, sourceActor,
+    "ALARM_TOPIC", 10, TimeSource.POISSON, 2.0, 42L); // reproducible
+```
+
+A Poisson alarm re-arms until cleared; a request with a non-positive rate or a malformed seed is refused with an error log and registers nothing.
+
 The alarm fires by signaling an event on the associated topic. Until it fires, it can be **cancelled** via an `Engine.CLEAR_ALARM_EVENT` whose first parameter is the alarm's topic.
 
 Constraints:

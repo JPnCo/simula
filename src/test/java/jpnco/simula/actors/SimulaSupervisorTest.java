@@ -85,6 +85,7 @@ class SimulaSupervisorTest {
     assertEquals(a, a);
     assertNotEquals(a, b);
     assertNotEquals(a, null);
+    assertNotEquals(a, new Object());
     assertEquals(a.hashCode(), a.hashCode());
   }
 

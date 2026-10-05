@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -39,10 +40,16 @@ import jpnco.simula.engine.IdBuilder;
  * <ul>
  * <li>the topic used to fire this alarm ;
  * <li>the time to fire this alarm ;
- * <li>the period of this alarm (optional).
+ * <li>the period of this alarm (optional), or the marker {@link #POISSON}
+ * followed by a positive rate (a Double, mean firings per real unit) and an
+ * optional seed (a Number) for a reproducible sequence.
  * </ul>
  * Time and period are in real time. Do not use time factor to define their
  * values.
+ * <p>
+ * A Poisson alarm re-arms until it is cleared: each wait drawn from the
+ * exponential distribution of parameter equal to the rate, rounded to whole
+ * simulated units and never below one (FR-001, FR-002).
  * <p>
  * The alarm is signaled by an event with the topic associated to the alarm.
  * <p>
@@ -54,6 +61,25 @@ import jpnco.simula.engine.IdBuilder;
 public final class TimeSource implements Actor {
 
 	/**
+	 * Period marker requesting a Poisson recurrence: used in place of the period
+	 * parameter of a request alarm event, followed by a positive rate and an
+	 * optional seed (FR-001).
+	 */
+	public static final String POISSON = "POISSON";
+
+	/** Error message when a Poisson request carries no positive rate (FR-006). */
+	private static final String INVALID_POISSON_RATE =
+			"Poisson alarm %s refused: rate must be a positive number\n";
+
+	/** Error message when a Poisson request carries a seed that is not a number (FR-006). */
+	private static final String INVALID_POISSON_SEED =
+			"Poisson alarm %s refused: seed must be a number\n";
+
+	/** Error message when a request carries a period that is not an integer (FR-006). */
+	private static final String INVALID_PERIOD =
+			"Alarm %s refused: period must be an integer or the POISSON marker\n";
+
+	/**
 	 * This class represents an alarm that is set to fire at a given time. Fire an
 	 * alarm consists to signal an event with the topic associated to this alarm.
 	 * <p>
@@ -61,9 +87,12 @@ public final class TimeSource implements Actor {
 	 */
 	private static class Alarm {
 		private static final int NO_PERIOD = -1;
+		private static final double NO_RATE = -1.0;
 		private final String topic;
 		private int timeToFire;
 		private final int period;
+		private final double rate;
+		private final Random random;
 
 		/**
 		 * Constructor
@@ -76,9 +105,31 @@ public final class TimeSource implements Actor {
 		}
 
 		Alarm(final String topic, final int timeToFire, final int period) {
+			this(topic, timeToFire, period, NO_RATE, null);
+		}
+
+		/**
+		 * Builds a Poisson alarm: it re-arms after a wait drawn from the
+		 * exponential distribution of parameter {@code rate} until cleared
+		 * (FR-001, FR-002). The random source belongs to this alarm alone, so its
+		 * sequence is independent from the other alarms (FR-007).
+		 *
+		 * @param topic      the topic of the event to signal
+		 * @param timeToFire the deterministic first firing time
+		 * @param rate       the mean number of firings per real unit, positive
+		 * @param random     the random source owned by this alarm
+		 */
+		Alarm(final String topic, final int timeToFire, final double rate, final Random random) {
+			this(topic, timeToFire, NO_PERIOD, rate, random);
+		}
+
+		Alarm(final String topic, final int timeToFire, final int period, final double rate,
+				final Random random) {
 			this.topic = topic;
 			this.timeToFire = timeToFire;
 			this.period = period;
+			this.rate = rate;
+			this.random = random;
 		}
 
 		/**
@@ -105,7 +156,24 @@ public final class TimeSource implements Actor {
 		 * @return {@code true} if the alarm repeats, {@code false} otherwise
 		 */
 		public boolean isPeriodic() {
-			return period != Alarm.NO_PERIOD;
+			return period != Alarm.NO_PERIOD || isPoisson();
+		}
+
+		/**
+		 * Returns whether this alarm re-arms on a Poisson recurrence (FR-001).
+		 *
+		 * @return {@code true} when this alarm was built with a rate
+		 */
+		public boolean isPoisson() {
+			return rate != Alarm.NO_RATE;
+		}
+
+		public double getRate() {
+			return rate;
+		}
+
+		public Random getRandom() {
+			return random;
 		}
 
 		/**
@@ -115,6 +183,15 @@ public final class TimeSource implements Actor {
 		public void update() {
 			timeToFire += period;
 
+		}
+
+		/**
+		 * Advances the time to fire by the given drawn wait, for Poisson alarms.
+		 *
+		 * @param wait the number of simulated units before the next firing
+		 */
+		public void advance(final int wait) {
+			timeToFire += wait;
 		}
 	}
 
@@ -339,6 +416,14 @@ public final class TimeSource implements Actor {
 		final Object[] params = event.getParameters();
 		final String topic = (String) params[0];
 		final int time = (Integer) params[1];
+		if (params.length >= 4 && TimeSource.POISSON.equals(params[2])) {
+			processPoissonRequest(topic, time, params);
+			return;
+		}
+		if (params.length >= 3 && !(params[2] instanceof Integer)) {
+			Logger.error(this, INVALID_PERIOD, topic);
+			return;
+		}
 		Alarm alarm;
 		if (params.length == 3) {
 			alarm = new Alarm(topic, time, TIME_FACTOR * (Integer) params[2]);
@@ -347,6 +432,36 @@ public final class TimeSource implements Actor {
 		}
 		Logger.debug(this, "creates alarm %s:%d\n", topic, time);
 		alarms.put(topic, alarm);
+	}
+
+	/**
+	 * Registers the Poisson alarm of a request whose third parameter is the
+	 * {@link #POISSON} marker. The fourth parameter must be a positive rate and
+	 * an optional fifth parameter may carry a seed; any other shape is refused
+	 * with an error log and registers no alarm (FR-001, FR-006).
+	 *
+	 * @param topic  the topic of the alarm
+	 * @param time   the deterministic first firing time
+	 * @param params the request parameters
+	 */
+	private void processPoissonRequest(final String topic, final int time, final Object[] params) {
+		if (!(params[3] instanceof Number) || ((Number) params[3]).doubleValue() <= 0) {
+			Logger.error(this, INVALID_POISSON_RATE, topic);
+			return;
+		}
+		final double rate = ((Number) params[3]).doubleValue();
+		final Random random;
+		if (params.length >= 5) {
+			if (!(params[4] instanceof Number)) {
+				Logger.error(this, INVALID_POISSON_SEED, topic);
+				return;
+			}
+			random = new Random(((Number) params[4]).longValue());
+		} else {
+			random = new Random();
+		}
+		Logger.debug(this, "creates Poisson alarm %s:%d rate=%s\n", topic, time, rate);
+		alarms.put(topic, new Alarm(topic, time, rate, random));
 	}
 
 	/**
@@ -477,12 +592,32 @@ public final class TimeSource implements Actor {
 			Logger.debug(this, "fires %s%n", a.getTopic());
 			fire(a);
 			if (a.isPeriodic()) {
-				a.update();
+				if (a.isPoisson()) {
+					a.advance(drawWait(a.getRate(), a.getRandom(), TIME_FACTOR));
+				} else {
+					a.update();
+				}
 			} else {
 				alarms.remove(a.getTopic());
 			}
 		});
 		engine.signal(timeEvent);
 
+	}
+
+	/**
+	 * Draws the next wait of a Poisson alarm: the inverse-CDF transform of the
+	 * exponential distribution of parameter {@code rate}, scaled by the time
+	 * factor like a fixed period, rounded to whole simulated units and floored at
+	 * one so that two firings are always separated (FR-002, SC-003).
+	 *
+	 * @param rate       the mean number of firings per real unit, positive
+	 * @param random     the random source owned by the alarm
+	 * @param timeFactor the number of simulated units per real unit
+	 * @return the next wait in simulated units, at least one
+	 */
+	static int drawWait(final double rate, final Random random, final int timeFactor) {
+		final double exponential = -Math.log(1 - random.nextDouble()) / rate;
+		return Math.max(1, (int) Math.round(timeFactor * exponential));
 	}
 }

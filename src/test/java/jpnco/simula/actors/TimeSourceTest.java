@@ -1,5 +1,6 @@
 package jpnco.simula.actors;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -15,7 +16,10 @@ import static org.mockito.Mockito.when;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -276,6 +280,177 @@ class TimeSourceTest {
 		assertTrue(actor.isAlarmOk());
 		assertEquals(2, actor.getCount());
 		engine.stop();
+	}
+
+	// ---------- Poisson alarms (feature 007) ----------
+
+	/**
+	 * Requests a seeded Poisson alarm on a mocked engine and steps the clock from
+	 * 1 to 20.
+	 *
+	 * @param seed the seed of the random sequence
+	 * @return the simulated times at which the alarm topic was signaled
+	 * @throws Exception if reflection fails
+	 */
+	private List<Integer> poissonFireTimes(final long seed) throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 1.0, seed));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		final List<Event> all = captor.getAllValues();
+		final List<Integer> times = new ArrayList<>();
+		for (int i = 0; i < all.size(); i++) {
+			if (ALARM.equals(all.get(i).getTopic())) {
+				for (int j = i; j < all.size(); j++) {
+					if (Engine.TIME_EVENT.equals(all.get(j).getTopic())) {
+						times.add((Integer) all.get(j).getParameters()[0]);
+						break;
+					}
+				}
+			}
+		}
+		return times;
+	}
+
+	@Test
+	void poissonAlarmFiresAtIrregularGaps() throws Exception {
+		final List<Integer> times = poissonFireTimes(42L);
+		assertTrue(times.size() >= 3, "expected at least 3 firings, got " + times);
+		assertEquals(2, times.get(0).intValue(), "the first firing is the requested time");
+		final Set<Integer> gaps = new HashSet<>();
+		for (int i = 1; i < times.size(); i++) {
+			final int gap = times.get(i) - times.get(i - 1);
+			assertTrue(gap >= 1, "gaps must be at least one unit: " + times);
+			gaps.add(gap);
+		}
+		assertTrue(gaps.size() >= 2, "firings must be irregular, gaps=" + gaps);
+	}
+
+	@Test
+	void seededPoissonAlarmsReplayIdentically() throws Exception {
+		assertEquals(poissonFireTimes(42L), poissonFireTimes(42L),
+				"the same rate and seed must produce the same firing sequence");
+	}
+
+	@Test
+	void clearingAPoissonAlarmStopsTheFirings() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 1.0, 42L));
+		setTime(ts, 2);
+		ts.process(clearAlarmEvent(engine, ALARM));
+		for (int t = 3; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertEquals(1, captor.getAllValues().stream().filter(e -> ALARM.equals(e.getTopic())).count(),
+				"no firing must occur after the clear");
+	}
+
+	@Test
+	void unseededPoissonAlarmFiresItsFirstTime() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 1.0));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream().anyMatch(e -> ALARM.equals(e.getTopic())),
+				"an unseeded Poisson alarm must still fire at its deterministic first time");
+	}
+
+	@Test
+	void drawWaitMeanMatchesRateAndDispersionIsPresent() {
+		final Random random = new Random(7L);
+		final double rate = 1.0;
+		final int timeFactor = 10;
+		final int draws = 2000;
+		double sum = 0;
+		final Set<Integer> values = new HashSet<>();
+		for (int i = 0; i < draws; i++) {
+			final int wait = TimeSource.drawWait(rate, random, timeFactor);
+			assertTrue(wait >= 1, "every wait is at least one unit");
+			sum += wait;
+			values.add(wait);
+		}
+		final double mean = sum / draws;
+		final double expected = timeFactor / rate;
+		assertTrue(Math.abs(mean - expected) / expected < 0.10,
+				"empirical mean " + mean + " must be within 10% of " + expected);
+		assertTrue(values.size() >= 2, "the draws must disperse");
+	}
+
+	@Test
+	void poissonRequestWithNonPositiveRateIsRefused() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 0.0, 1L));
+		ts.process(requestAlarmEvent(engine, "NEG", 2, TimeSource.POISSON, -1.0));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream().noneMatch(e -> ALARM.equals(e.getTopic()) || "NEG".equals(e.getTopic())),
+				"a refused request must register no alarm");
+	}
+
+	@Test
+	void poissonRequestWithNonNumberSeedIsRefused() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 1.0, "nope"));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream().noneMatch(e -> ALARM.equals(e.getTopic())),
+				"a refused request must register no alarm");
+	}
+
+	@Test
+	void doublePeriodWithoutMarkerIsRefusedNotReinterpreted() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		assertDoesNotThrow(() -> ts.process(requestAlarmEvent(engine, ALARM, 3, 1.5)));
+		assertDoesNotThrow(() -> ts.process(requestAlarmEvent(engine, "FAR", 3, 1.5, 9)));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.noneMatch(e -> ALARM.equals(e.getTopic()) || "FAR".equals(e.getTopic())),
+				"a malformed period must register no alarm");
+	}
+
+	@Test
+	void poissonRequestWithNonNumberRateIsRefused() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, "fast"));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream().noneMatch(e -> ALARM.equals(e.getTopic())),
+				"a refused request must register no alarm");
 	}
 
 	@Test
