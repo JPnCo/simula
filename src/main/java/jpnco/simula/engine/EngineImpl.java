@@ -72,6 +72,9 @@ public final class EngineImpl implements Engine {
    */
   private volatile boolean stopped;
 
+  /** Whether the START event has been signaled: late registrations receive it at once. */
+  private volatile boolean started;
+
   private final Map<String, Set<Actor>> subscribersBytopic = new ConcurrentHashMap<>();
   private final int TIME_FACTOR;
   private final int TIMEOUT;
@@ -470,6 +473,7 @@ public final class EngineImpl implements Engine {
    */
   private void processStartEvent(final Event event) {
     Logger.debug(this, "===== processStartEvent(%s) =====\n", getName());
+    started = true;
     signal(EventImpl.createEvent(Engine.STARTED_ACTOR_EVENT, this));
     if (parent != null) {
       // Symmetric to the STOPPED_ENGINE_EVENT of run(): the parent observes the full
@@ -726,6 +730,7 @@ public final class EngineImpl implements Engine {
   @Override
   public void start() {
     Logger.trace(this, "starting (%s)...\n", getName());
+    started = true;
     final Event start = EventImpl.createEvent(Engine.START_EVENT, this, (Actor) null);
     signal(start);
   }
@@ -759,6 +764,11 @@ public final class EngineImpl implements Engine {
       Thread.ofVirtual().name(actor.getName()).start(actor);
     } else {
       new Thread(actor, actor.getName()).start();
+    }
+    if (started) {
+      // The single START of start() cannot reach an actor registered later: post it to this
+      // actor only, so it enters its main loop and signals its own start like any other.
+      actor.post(EventImpl.createEvent(Engine.START_EVENT, this, (Actor) null));
     }
   }
 

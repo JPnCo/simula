@@ -546,6 +546,66 @@ class EngineImplCoverageTest {
   }
 
   /**
+   * An actor registered after the engine was started receives the START event from the engine at
+   * registration: it enters its main loop and signals its own start, so the supervisor observes it
+   * like any other actor (the single START signaled by start() alone cannot reach it).
+   */
+  @Test
+  void lateRegisteredActorIsStartedAndSupervised() throws Exception {
+    final SimulaSupervisor supervisor = new SimulaSupervisor(root);
+    root.registerAndStart(supervisor);
+    root.start();
+    waitForRun(200);
+    final IdActor late = new IdActor(root);
+    root.registerAndStart(late);
+    final long deadline = System.currentTimeMillis() + 15000;
+    while (supervisor.getStates().get(late) != Status.STARTED
+        && System.currentTimeMillis() < deadline) {
+      Thread.sleep(50);
+    }
+    assertEquals(Status.STARTED, supervisor.getStates().get(late));
+  }
+
+  /** A late-registered actor runs its start hook: the synthetic START reaches the delegate. */
+  @Test
+  void lateRegisteredActorRunsItsStartHook() throws Exception {
+    final class LateActor implements Actor {
+      private final Actor delegate;
+      private final Integer id = IdBuilder.nextId();
+      private final CountDownLatch startedHook = new CountDownLatch(1);
+
+      LateActor(final Engine engine) {
+        delegate = ActorDelegate.createDelegate(engine, this);
+      }
+
+      @Override
+      public Actor getDelegate() {
+        return delegate;
+      }
+
+      @Override
+      public Integer getId() {
+        return id;
+      }
+
+      @Override
+      public void process(final Event event) {}
+
+      @Override
+      public void afterStart() {
+        startedHook.countDown();
+      }
+    }
+    root.start();
+    waitForRun(200);
+    final LateActor late = new LateActor(root);
+    root.registerAndStart(late);
+    assertTrue(
+        late.startedHook.await(10, TimeUnit.SECONDS),
+        "a late-registered actor must receive the START event at registration");
+  }
+
+  /**
    * A child engine that starts signals its parent, so a supervisor registered on the parent records
    * the child as STARTED: the parent's supervisor sees both lifecycle transitions of its child
    * engines, not only their stop.

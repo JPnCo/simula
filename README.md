@@ -341,7 +341,7 @@ A mode can also be resolved by name, case-insensitively: `ExecutionMode.fromName
 
 - **Always call `start()`** on the root engine to trigger the `START` events.
 - **Stop cleanly** with `stop()` on the root engine for a cascade shutdown.
-- **Register every actor** with `registerAndStart()`; the engine starts it on a thread suited to the execution mode.
+- **Register every actor** with `registerAndStart()`; the engine starts it on a thread suited to the execution mode. Registering **after** `start()` is supported: the engine posts `START` to the new actor at registration, so it starts and is supervised like the others.
 - **Subscribe actors to the topics** they must receive; only use `signal()` for topics the actor has subscribed to.
 - **Never assume a thread is exclusive**: actors run in parallel; the engine's shared state is guarded by reentrant locks.
 - **Never use `synchronized`** in your actors: with virtual threads it pins the carrier thread and destroys scalability; guard shared state with `java.util.concurrent.locks.ReentrantLock` instead.
