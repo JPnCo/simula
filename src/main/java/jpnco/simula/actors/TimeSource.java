@@ -79,6 +79,10 @@ public final class TimeSource implements Actor {
 	private static final String INVALID_PERIOD =
 			"Alarm %s refused: period must be an integer or the POISSON marker\n";
 
+	/** Debug message logged when a Poisson alarm is registered (FR-001). */
+	private static final String CREATE_POISSON_ALARM =
+			"creates Poisson alarm %s:%d rate=%s\n";
+
 	/**
 	 * This class represents an alarm that is set to fire at a given time. Fire an
 	 * alarm consists to signal an event with the topic associated to this alarm.
@@ -123,6 +127,18 @@ public final class TimeSource implements Actor {
 			this(topic, timeToFire, NO_PERIOD, rate, random);
 		}
 
+		/**
+		 * Full constructor shared by every alarm shape.
+		 *
+		 * @param topic      the topic of the event to signal
+		 * @param timeToFire the next firing time
+		 * @param period     the fixed period in internal units, {@link #NO_PERIOD}
+		 *                   when the alarm has no fixed period
+		 * @param rate       the Poisson rate, {@link #NO_RATE} when the alarm is
+		 *                   not a Poisson alarm (FR-001)
+		 * @param random     the random source owned by this alarm, {@code null}
+		 *                   when the alarm is not a Poisson alarm (FR-007)
+		 */
 		Alarm(final String topic, final int timeToFire, final int period, final double rate,
 				final Random random) {
 			this.topic = topic;
@@ -151,7 +167,8 @@ public final class TimeSource implements Actor {
 		}
 
 		/**
-		 * Returns whether this alarm is periodic.
+		 * Returns whether this alarm is periodic. A Poisson alarm is periodic
+		 * because it re-arms until cleared (FR-001).
 		 *
 		 * @return {@code true} if the alarm repeats, {@code false} otherwise
 		 */
@@ -168,10 +185,22 @@ public final class TimeSource implements Actor {
 			return rate != Alarm.NO_RATE;
 		}
 
+		/**
+		 * Returns the Poisson rate of this alarm.
+		 *
+		 * @return the mean number of firings per real unit, or {@link #NO_RATE}
+		 *         when this alarm is not a Poisson alarm (FR-002)
+		 */
 		public double getRate() {
 			return rate;
 		}
 
+		/**
+		 * Returns the random source owned by this alarm.
+		 *
+		 * @return the alarm's own random source, {@code null} when this alarm is
+		 *         not a Poisson alarm (FR-007)
+		 */
 		public Random getRandom() {
 			return random;
 		}
@@ -186,7 +215,8 @@ public final class TimeSource implements Actor {
 		}
 
 		/**
-		 * Advances the time to fire by the given drawn wait, for Poisson alarms.
+		 * Advances the time to fire by the given drawn wait, for Poisson alarms
+		 * (FR-002, SC-003).
 		 *
 		 * @param wait the number of simulated units before the next firing
 		 */
@@ -408,7 +438,9 @@ public final class TimeSource implements Actor {
 	}
 
 	/**
-	 * Requests to set an alarm
+	 * Requests to set an alarm: one-shot, fixed-period, or Poisson marker shape;
+	 * a shape that matches none of them is refused with a logged error and
+	 * registers nothing (FR-001, FR-005, FR-006).
 	 *
 	 * @param event the event to process
 	 */
@@ -438,7 +470,9 @@ public final class TimeSource implements Actor {
 	 * Registers the Poisson alarm of a request whose third parameter is the
 	 * {@link #POISSON} marker. The fourth parameter must be a positive rate and
 	 * an optional fifth parameter may carry a seed; any other shape is refused
-	 * with an error log and registers no alarm (FR-001, FR-006).
+	 * with an error log and registers no alarm (FR-001, FR-006). A first firing
+	 * time already elapsed fires when the request is processed, then the alarm
+	 * re-arms from now (FR-001, FR-002).
 	 *
 	 * @param topic  the topic of the alarm
 	 * @param time   the deterministic first firing time
@@ -460,8 +494,17 @@ public final class TimeSource implements Actor {
 		} else {
 			random = new Random();
 		}
-		Logger.debug(this, "creates Poisson alarm %s:%d rate=%s\n", topic, time, rate);
-		alarms.put(topic, new Alarm(topic, time, rate, random));
+		Logger.debug(this, CREATE_POISSON_ALARM, topic, time, rate);
+		final Alarm alarm = new Alarm(topic, time, rate, random);
+		alarms.put(topic, alarm);
+		if (time <= currentTime) {
+			// The requested first firing instant is elapsed or already rung: the
+			// equality match in setTime would never catch it, so fire at once and
+			// re-arm from now, the whole sequence staying owned by this alarm
+			// (FR-001, FR-002).
+			fire(alarm);
+			alarm.advance(drawWait(rate, random, TIME_FACTOR));
+		}
 	}
 
 	/**
@@ -579,7 +622,9 @@ public final class TimeSource implements Actor {
 
 	/**
 	 * Set the current time and fires TIME_EVENT and alarms if needed. This method
-	 * is called by the clock instance.
+	 * is called by the clock instance. A periodic alarm re-arms after firing:
+	 * fixed-period alarms by their period, Poisson alarms by a drawn wait, while
+	 * a one-shot alarm is removed (FR-002, FR-005).
 	 *
 	 * @param time the time to set
 	 */

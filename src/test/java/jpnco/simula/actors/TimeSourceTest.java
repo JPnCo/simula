@@ -2,6 +2,7 @@ package jpnco.simula.actors;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -451,6 +452,118 @@ class TimeSourceTest {
 		verify(engine, atLeast(0)).signal(captor.capture());
 		assertTrue(captor.getAllValues().stream().noneMatch(e -> ALARM.equals(e.getTopic())),
 				"a refused request must register no alarm");
+	}
+
+	/**
+	 * Extracts from the signals captured on the mocked engine the simulated
+	 * times at which the given topic was fired: a firing is signaled just
+	 * before the TIME event of the second in which it occurs.
+	 *
+	 * @param engine the mocked engine whose signals are inspected
+	 * @param topic  the fired topic to locate
+	 * @return the simulated times of the firings of the topic
+	 */
+	private List<Integer> fireTimes(final Engine engine, final String topic) {
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		final List<Event> all = captor.getAllValues();
+		final List<Integer> times = new ArrayList<>();
+		for (int i = 0; i < all.size(); i++) {
+			if (topic.equals(all.get(i).getTopic())) {
+				for (int j = i; j < all.size(); j++) {
+					if (Engine.TIME_EVENT.equals(all.get(j).getTopic())) {
+						times.add((Integer) all.get(j).getParameters()[0]);
+						break;
+					}
+				}
+			}
+		}
+		return times;
+	}
+
+	@Test
+	void poissonRequestReplacesOneShotAlarmOnSameTopic() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 3));
+		ts.process(requestAlarmEvent(engine, ALARM, 6, TimeSource.POISSON, 1.0, 42L));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final List<Integer> times = fireTimes(engine, ALARM);
+		assertFalse(times.isEmpty(), "the replacing Poisson alarm must fire");
+		assertEquals(6, times.get(0).intValue(),
+				"the replaced one-shot must not fire: the first firing is the Poisson one");
+	}
+
+	@Test
+	void poissonRequestReplacesPeriodicAlarmOnSameTopic() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 3, 2));
+		ts.process(requestAlarmEvent(engine, ALARM, 6, TimeSource.POISSON, 1.0, 42L));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final List<Integer> times = fireTimes(engine, ALARM);
+		assertFalse(times.isEmpty(), "the replacing Poisson alarm must fire");
+		assertEquals(6, times.get(0).intValue(),
+				"the replaced periodic alarm must not fire: the first firing is the Poisson one");
+	}
+
+	@Test
+	void oneShotRequestReplacesPoissonAlarmOnSameTopic() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 1.0, 42L));
+		ts.process(requestAlarmEvent(engine, ALARM, 8));
+		for (int t = 1; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final List<Integer> times = fireTimes(engine, ALARM);
+		assertEquals(List.of(8), times,
+				"the replaced Poisson must stop re-arming: only the newest alarm fires");
+	}
+
+	@Test
+	void poissonRequestWithElapsedFirstTimeFiresWhenProcessed() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		setTime(ts, 5);
+		ts.process(requestAlarmEvent(engine, ALARM, 2, TimeSource.POISSON, 1.0, 42L));
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream().anyMatch(e -> ALARM.equals(e.getTopic())),
+				"a Poisson alarm with an elapsed first time must fire when the request is processed");
+		for (int t = 6; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		captor.getAllValues().clear();
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream().filter(e -> ALARM.equals(e.getTopic())).count() >= 2,
+				"after the immediate firing the alarm must keep re-arming");
+	}
+
+	@Test
+	void elapsedFirstTimeStillNeverFiresForExistingShapes() throws Exception {
+		final Engine engine = mock(Engine.class);
+		when(engine.getTime()).thenReturn(0);
+		final TimeSource ts = newTimeSource(engine, 2);
+		setTime(ts, 5);
+		ts.process(requestAlarmEvent(engine, ALARM, 2));
+		ts.process(requestAlarmEvent(engine, "PERIODIC", 2, 2));
+		for (int t = 6; t <= 20; t++) {
+			setTime(ts, t);
+		}
+		final ArgumentCaptor<Event> captor = ArgumentCaptor.forClass(Event.class);
+		verify(engine, atLeast(0)).signal(captor.capture());
+		assertTrue(captor.getAllValues().stream()
+				.noneMatch(e -> ALARM.equals(e.getTopic()) || "PERIODIC".equals(e.getTopic())),
+				"one-shot and fixed-period behavior with an elapsed time must stay unchanged (FR-005)");
 	}
 
 	@Test

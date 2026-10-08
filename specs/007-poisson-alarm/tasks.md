@@ -121,3 +121,15 @@ Phase 6: T032 (README) and T033 (architecture.md) are independent documents → 
 ## Implementation Strategy
 
 MVP = Phase 1–3 (US1): Poisson alarms usable end-to-end. US2 proves the law in-process; US3 closes safety. Polish completes Constitution gates.
+
+---
+
+## Phase 7: Convergence
+
+**Purpose**: Remaining work found by the convergence assessment (build green, gates met; documentation, literal-naming and test-coverage gaps remain).
+
+- [X] T036 CRITICAL: Add English Javadoc (purpose, `@param`, `@return` where applicable) to the new undocumented members of the inner `Alarm` class in `src/main/java/jpnco/simula/actors/TimeSource.java` — the 5-argument constructor, `getRate()` and `getRandom()` — required for every method regardless of visibility per Constitution VI (contradicts)
+- [X] T037 CRITICAL: Cite in the existing Javadoc of `Alarm.isPeriodic()`, `Alarm.advance(int)`, `TimeSource.processRequestAlarm(event)` and `TimeSource.setTime(int)` in `src/main/java/jpnco/simula/actors/TimeSource.java` the FR/SC identifiers each participates in (FR-001..FR-007, SC-003) per Constitution VI and the plan Constitution Check row VI (partial)
+- [X] T038 CRITICAL: Extract the raw string literal `"creates Poisson alarm %s:%d rate=%s\n"` in `processPoissonRequest` of `src/main/java/jpnco/simula/actors/TimeSource.java` into a named constant, like the existing `INVALID_*` message constants, per Constitution VII (contradicts)
+- [X] T039 Add tests in `src/test/java/jpnco/simula/actors/TimeSourceTest.java` proving the one-alarm-per-topic replacement rule across the new shape: a Poisson request replaces an existing one-shot or fixed-period alarm on the same topic, and any new request replaces a Poisson alarm — only the newest alarm fires (FR-005, US3/AC3, data-model REPLACE rule) (partial)
+- [X] T040 Resolve the elapsed-first-firing edge case in `TimeSource.processRequestAlarm`/`setTime`: a Poisson request whose first firing time is already elapsed must fire when the request is processed, while one-shot and fixed-period behavior stays exactly as before (FR-005) and the chosen tolerance is covered by a test per spec Edge Cases (partial)
