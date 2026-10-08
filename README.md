@@ -36,7 +36,7 @@ mvn -o clean install
 
 Offline environment: the test dependencies (`junit-jupiter-api` 5.14.0, `mockito` 5.22.0) must be present in `~/.m2`.
 
-The artifact is declared as `jpnco:simula:0.0.1-SNAPSHOT`.
+The artifact is declared as `fr.jpnco.simula:simula-core:0.0.1-SNAPSHOT`.
 
 ### Maven dependency
 
@@ -44,8 +44,8 @@ To use the framework in your own project, declare the dependency:
 
 ```xml
 <dependency>
-    <groupId>jpnco</groupId>
-    <artifactId>simula</artifactId>
+    <groupId>fr.jpnco.simula</groupId>
+    <artifactId>simula-core</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 </dependency>
 ```
@@ -64,8 +64,8 @@ Actors communicate **only** through events: they post events to a target actor, 
 ## Quick start
 
 ```java
-import jpnco.simula.Engine;
-import jpnco.simula.engine.EngineImpl;
+import fr.jpnco.simula.Engine;
+import fr.jpnco.simula.engine.EngineImpl;
 
 Engine engine = new EngineImpl("my-simulation", 2);
 engine.start();
@@ -84,11 +84,11 @@ An actor is implemented by implementing the `Actor` interface. Thanks to the **d
 3. `process(Event event)` — processes received events.
 
 ```java
-import jpnco.simula.Actor;
-import jpnco.simula.Event;
-import jpnco.simula.actors.Logger;
-import jpnco.simula.engine.ActorDelegate;
-import jpnco.simula.engine.IdBuilder;
+import fr.jpnco.simula.Actor;
+import fr.jpnco.simula.Event;
+import fr.jpnco.simula.actors.Logger;
+import fr.jpnco.simula.engine.ActorDelegate;
+import fr.jpnco.simula.engine.IdBuilder;
 
 public class MyActor implements Actor {
 
@@ -146,8 +146,8 @@ Stopping is **terminal**: once an actor's run loop has completed, the engine unr
 To broadcast an event to all subscribers of its topic:
 
 ```java
-import jpnco.simula.Event;
-import jpnco.simula.engine.EventImpl;
+import fr.jpnco.simula.Event;
+import fr.jpnco.simula.engine.EventImpl;
 
 Event event = EventImpl.createEvent("MY_TOPIC", sourceActor, "param1", 42);
 engine.signal(event);
@@ -233,7 +233,7 @@ Constraints:
 
 ## Built-in actors
 
-The framework ships several ready-to-use actors in `jpnco.simula.actors`.
+The framework ships several ready-to-use actors in `fr.jpnco.simula.actors`.
 
 ### Logger
 
@@ -263,8 +263,8 @@ The simulation clock, created on the root engine. It subscribes to the `START`/`
 A **synchronization** actor that coordinates a set of participants. Participants signal their readiness on a topic; once the count reaches the configured participant number, the barrier signals the "complete" topic.
 
 ```java
-import jpnco.simula.actors.Barrier;
-import jpnco.simula.actors.BarrierMode;
+import fr.jpnco.simula.actors.Barrier;
+import fr.jpnco.simula.actors.BarrierMode;
 
 Barrier barrier = new Barrier(engine, 3, "READY", "ALL_READY", BarrierMode.SINGLE_USE, false);
 engine.registerAndStart(barrier);
@@ -286,7 +286,7 @@ The constructor throws `IllegalArgumentException` if `participants` is non-posit
 A **read-only observer** of the simulation lifecycle. It subscribes to the actor-start and stop events of its engine and records the status (`STARTED`/`STOPPED`) of every component it observes, queryable at any time via `getStates()`.
 
 ```java
-import jpnco.simula.actors.SimulaSupervisor;
+import fr.jpnco.simula.actors.SimulaSupervisor;
 
 SimulaSupervisor supervisor = new SimulaSupervisor(engine);
 engine.registerAndStart(supervisor);
@@ -335,7 +335,7 @@ The execution mode determines the type of thread used to run actors.
 Choose the mode at construction:
 
 ```java
-import jpnco.simula.engine.ExecutionMode;
+import fr.jpnco.simula.engine.ExecutionMode;
 
 // Virtual mode (default)
 Engine v = new EngineImpl("virtual", 2);
@@ -362,7 +362,7 @@ A mode can also be resolved by name, case-insensitively: `ExecutionMode.fromName
 
 ## API reference
 
-The public interfaces live in the `jpnco.simula` package:
+The public interfaces live in the `fr.jpnco.simula` package:
 
 - `Actor` — `getId()`, `getEngine()`, `getDelegate()`, `getName()`, `getSimpleName()`, `isStopped()`, `process(Event)`, `post(Event)`, `subscribe(String)`, `stopMe()`, `purgeEvents()`, `run()`, `afterStart()`, `beforeStop()`, `compareTo(Actor)`.
 - `Engine extends Actor` — `start()`, `stop()`, `registerAndStart(Actor)`, `signal(Event)`, `signalToChildren(Event)`, `subscribe(Actor, String)`, `unsubscribe(Actor, String)`, `unregister(Actor)`, `addChild(Engine)`, `getParent()`, `getTime()`, `getTimeFactor()`, `getTimeSource()`, `getLogger()`.
@@ -370,7 +370,7 @@ The public interfaces live in the `jpnco.simula` package:
 
 The predefined topic constants are exposed on `Engine`: `START_EVENT`, `STOP_EVENT`, `STOP_ME_EVENT`, `STOPPED_ACTOR_EVENT`, `STOPPED_ENGINE_EVENT`, `TIME_EVENT`, `LOG_EVENT`, `PURGE_QUEUE_EVENT`, `REQUEST_ALARM_EVENT`, `CLEAR_ALARM_EVENT`.
 
-Implementations and factories live in `jpnco.simula.engine` (`EngineImpl`, `EventImpl`, `ActorDelegate`, `ExecutionMode`, `IdBuilder`), and the built-in actors in `jpnco.simula.actors` (`Logger`, `TimeSource`, `Barrier`, `BarrierMode`, `SimulaSupervisor` with its `Status` enum, `SupervisionListener`). `SimulaSupervisor` adds `getStates()`, `addSupervisionListener(SupervisionListener)` and `removeSupervisionListener(SupervisionListener)`.
+Implementations and factories live in `fr.jpnco.simula.engine` (`EngineImpl`, `EventImpl`, `ActorDelegate`, `ExecutionMode`, `IdBuilder`), and the built-in actors in `fr.jpnco.simula.actors` (`Logger`, `TimeSource`, `Barrier`, `BarrierMode`, `SimulaSupervisor` with its `Status` enum, `SupervisionListener`). `SimulaSupervisor` adds `getStates()`, `addSupervisionListener(SupervisionListener)` and `removeSupervisionListener(SupervisionListener)`.
 
 ---
 

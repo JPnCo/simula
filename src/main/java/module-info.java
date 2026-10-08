@@ -1,6 +1,6 @@
 module simula {
-	exports jpnco.simula;
-	exports jpnco.simula.actors;
-	exports jpnco.simula.engine;
+	exports fr.jpnco.simula;
+	exports fr.jpnco.simula.actors;
+	exports fr.jpnco.simula.engine;
 
 }
